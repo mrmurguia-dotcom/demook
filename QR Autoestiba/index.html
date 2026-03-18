@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema QR Inventarios - Final Fix</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a5f">
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+:root{
+    --primary:#1e3a5f; --secondary:#2e7d32; --bg:#f4f6f9;
+    --off: #f44336; --on: #4CAF50; --standby: #FF9800;
+}
+*{box-sizing:border-box; font-family: 'Segoe UI', sans-serif;}
+body{ margin:0; background:var(--bg); padding-bottom: 50px; scroll-behavior: smooth; }
+#main-screen{ max-width:550px; margin:auto; padding:15px; }
+.card{ background:white; padding:15px; border-radius:12px; margin-bottom:15px; box-shadow:0 2px 5px rgba(0,0,0,0.1); border:1px solid #ddd; }
+.card-title{ font-weight:bold; margin-bottom:10px; text-transform:uppercase; color: var(--primary); font-size: 13px; }
+.flex-row{ display:flex; gap:10px; margin-bottom:10px; }
+.flex-col{ flex:1; display:flex; flex-direction:column; }
+label{ font-size:11px; font-weight:bold; margin-bottom:3px; color: #666; }
+select, input{ padding:12px; border-radius:8px; border:1px solid #ccc; text-align:center; font-size: 16px; width: 100%; }
+.btn-qr{ width:100%; padding:16px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:5px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; }
+.btn-qr-lote{ background:var(--secondary); }
+.tabs{ display:flex; gap:8px; overflow-x:auto; padding-bottom:10px; }
+.tab-btn{ padding:10px 15px; border:1px solid #ccc; border-radius:8px; background:#eee; cursor:pointer; font-weight:bold; white-space:nowrap; }
+.tab-btn.active{ background:var(--primary); color:white; }
+.grid-lotes{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+.lote-btn{ padding:12px; border:1px solid #ccc; border-radius:8px; background:white; cursor:pointer; font-weight:bold; text-align:center; }
+.lote-btn.active{ background:#d1d9e6; border:2px solid var(--primary); }
+.desc-box{ background:#e8f0fe; padding:12px; border-radius:8px; margin: 10px 0; border-left:4px solid #2196F3; font-weight:500; min-height: 40px; }
+.total-box{ text-align:center; font-size:17px; font-weight:bold; margin-top:10px; color:var(--primary); border-top: 1px solid #eee; padding-top: 10px; }
+
+.voice-fab {
+    position: fixed; bottom: 25px; right: 25px; width: 70px; height: 70px; border-radius: 50%;
+    background: var(--off); color: white; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3); cursor: pointer; z-index: 2000; border: none;
+}
+.voice-fab.listening { background: var(--on); animation: pulse 1.5s infinite; }
+.voice-fab.standby { background: var(--standby); }
+#voice-status {
+    position: fixed; bottom: 105px; right: 25px; background: rgba(0,0,0,0.8); color: white;
+    padding: 6px 15px; border-radius: 20px; font-size: 12px; pointer-events: none; opacity: 0; transition: 0.3s;
+}
+.voice-fab.listening + #voice-status, .voice-fab.standby + #voice-status { opacity: 1; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(76, 175, 80, 0); } 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); } }
+
+#qr-screen{ display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; flex-direction:column; align-items:center; justify-content:center; z-index: 3000; }
+.btn-back{ background:#f44336; color:white; border:none; padding:15px 50px; border-radius:12px; font-size:18px; font-weight:bold; cursor:pointer; margin-top: 25px; }
+</style>
+</head>
+<body>
+
+<button class="voice-fab" id="voiceBtn" onclick="toggleVozFisico()">
+    <svg viewBox="0 0 24 24" width="32" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+</button>
+<div id="voice-status">Listo</div>
+
+<div id="main-screen">
+    <div style="text-align:center; margin-bottom:20px;">
+        <h1 style="color:var(--primary); margin:0;">QR Autoestiba</h1>
+        <small>Control por Voz - No guarda cambios</small>
+    </div>
+
+    <div class="card">
+        <div class="card-title">1. Archivo</div>
+        <input type="file" id="excelFile" accept=".xlsx,.xls">
+        <button class="btn-qr" onclick="cargarExcel()">📂 CARGAR PLANILLA</button>
+    </div>
+
+    <div class="card">
+        <div class="card-title">2. Ubicación</div>
+        <div class="flex-row">
+            <div class="flex-col">
+                <label>PASILLO</label>
+                <select id="sel-pasillo" onchange="actualizarDatos()">
+                    <option value="Q">Q</option>
+                    <option value="V" selected>V</option>
+                </select>
+            </div>
+            <div class="flex-col">
+                <label>FILA</label>
+                <input type="number" id="in-fila" value="172" onchange="actualizarDatos()">
+            </div>
+            <div class="flex-col">
+                <label>&nbsp;</label>
+                <div style="display:flex; gap:5px;">
+                    <button class="btn-qr" style="margin:0; padding:10px; flex:1;" onclick="sumarFila(1)">+1</button>
+                    <button class="btn-qr" style="margin:0; padding:10px; flex:1;" onclick="sumarFila(2)">+2</button>
+                </div>
+            </div>
+        </div>
+        <button id="btn-qr-ubi" class="btn-qr" onclick="generarQrUbicacion()">📱 QR UBICACIÓN</button>
+    </div>
+
+    <div class="card" id="seccion-contenido">
+        <div class="card-title">3. Contenido</div>
+        <div id="sku-container" class="tabs"></div>
+        <div id="lbl-desc" class="desc-box">Esperando datos...</div>
+        <div id="lotes-container" class="grid-lotes"></div>
+        <div class="flex-col" style="margin-top:10px;">
+            <label>CANTIDAD</label>
+            <input type="number" id="in-cantidad" value="0" onchange="actualizarTotal()">
+        </div>
+        <button id="btn-qr-lote" class="btn-qr btn-qr-lote" onclick="generarQrLote()">📱 QR LOTE</button>
+        <div class="total-box">
+            PALLETS: <span id="lbl-pallets">0</span> | SKU: <span id="lbl-total">0</span>
+        </div>
+    </div>
+</div>
+
+<div id="qr-screen">
+    <div id="qrcode"></div>
+    <p id="qr-text" style="font-weight:bold; margin-top:20px; font-size: 1.2rem;"></p>
+    <button class="btn-back" onclick="cerrarQr()">ATRÁS</button>
+</div>
+
+<script>
+let excelData=[]; let datosFiltrados=[]; let skuSeleccionado=null; let loteSeleccionado=null;
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recognition = Recognition ? new Recognition() : null;
+let micEncendido = false; let procesandoComandos = false;
+
+if(recognition) {
+    recognition.lang = 'es-ES'; recognition.continuous = true; recognition.interimResults = false;
+    recognition.onresult = (event) => {
+        const raw = event.results[event.results.length - 1][0].transcript;
+        const t = raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,?!]/g, "").trim();
+        document.getElementById("voice-status").innerText = "Escuché: " + t;
+        procesarComandos(t);
+    };
+    recognition.onend = () => { if(micEncendido) recognition.start(); };
+}
+
+function sonarTin(f = 880) {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator(); const g = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        osc.frequency.setValueAtTime(f, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+        osc.start(); osc.stop(ctx.currentTime + 0.2);
+    } catch(e){}
+}
+
+function toggleVozFisico() {
+    if(!micEncendido) { try{recognition.start();}catch(e){} micEncendido=true; procesandoComandos=true; sonarTin(1000); }
+    else { micEncendido=false; procesandoComandos=false; recognition.stop(); sonarTin(400); }
+    actualizarBotonVisual();
+}
+
+function actualizarBotonVisual() {
+    const btn = document.getElementById("voiceBtn");
+    const st = document.getElementById("voice-status");
+    btn.classList.remove("listening", "standby");
+    if (micEncendido && procesandoComandos) { btn.classList.add("listening"); st.innerText = "Escuchando..."; }
+    else if (micEncendido && !procesandoComandos) { btn.classList.add("standby"); st.innerText = "Reposo (Dí 'Prende micrófono')"; }
+    else { st.innerText = "Voz Apagada"; }
+}
+
+function extraerNumero(t) {
+    let m = t.match(/\d+/); if(m) return parseInt(m[0]);
+    const d = {"uno":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"seis":6,"siete":7,"ocho":8,"nueve":9,"diez":10};
+    for (let k in d) { if(t.includes(k)) return d[k]; } return null;
+}
+
+function procesarComandos(t) {
+    if (t.includes("prende microfono") || t.includes("prender microfono")) { procesandoComandos=true; actualizarBotonVisual(); sonarTin(1000); return; }
+    if (!procesandoComandos) return;
+    if (t.includes("apaga microfono") || t.includes("apagar microfono")) { procesandoComandos=false; actualizarBotonVisual(); sonarTin(400); return; }
+
+    let ok = false;
+    if ((t.includes("suma") || t.includes("sumar")) && (t.includes("2") || t.includes("dos")) || t.includes("sumados")) { sumarFila(2); ok=true; }
+    else if ((t.includes("suma") || t.includes("sumar")) && (t.includes("1") || t.includes("uno")) || t.includes("sumauno")) { sumarFila(1); ok=true; }
+    else if (t.match(/\b(pasillo v|pasillo ve|pasillo b|pasillo be)\b/)) { document.getElementById("sel-pasillo").value="V"; actualizarDatos(); ok=true; }
+    else if (t.match(/\b(pasillo q|pasillo cu|pasillo ku)\b/)) { document.getElementById("sel-pasillo").value="Q"; actualizarDatos(); ok=true; }
+    else if (t.includes("fila") || t.includes("pila")) { let n=extraerNumero(t); if(n){ document.getElementById("in-fila").value=n; actualizarDatos(); ok=true; } }
+    else if (t.includes("qr ubicacion") || t.includes("codigo ubicacion")) { document.getElementById("btn-qr-ubi").click(); ok=true; }
+    else if (t.includes("qr lote") || t.includes("codigo lote")) { document.getElementById("btn-qr-lote").click(); ok=true; }
+    else if (t.includes("atras") || t.includes("volver") || t.includes("cerrar")) { cerrarQr(); ok=true; }
+    else if (t.includes("lote") || t.includes("note")) {
+        let n=extraerNumero(t); if(n){ 
+            let btns=document.getElementById("lotes-container").children; 
+            if(btns[n-1]){ btns[n-1].click(); ok=true; } 
+        }
+    }
+    else if (t.includes("cantidad")) { 
+        let n=extraerNumero(t); if(n){ document.getElementById("in-cantidad").value=n; actualizarTotal(); ok=true; } 
+    }
+    if(ok) sonarTin(880);
+}
+
+function cargarExcel(){
+    const file=document.getElementById("excelFile").files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=(e)=>{
+        const data=new Uint8Array(e.target.result);
+        const wb=XLSX.read(data,{type:"array"});
+        const sheet=wb.Sheets["legacy vStockPT"];
+        if(!sheet){alert("Hoja no encontrada"); return;}
+        excelData=XLSX.utils.sheet_to_json(sheet).map(r=>({
+            lote:String(r["Lote"]||"").trim(), 
+            cantOriginal:Number(r["CantEnMano"]||0), // GUARDAMOS EL ORIGINAL AQUÍ
+            desc:r["articulodescripcion"]||"", ubicacion:String(r["ubicaciónOK"]||""),
+            skuVisual:String(r["articuloOK"]||""), skuJDE:String(r["ITM"]||""), pallet:Number(r["Paletizado"]||0)
+        }));
+        alert("Excel cargado"); actualizarDatos();
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function sumarFila(n){ let f=document.getElementById("in-fila"); f.value=parseInt(f.value||0)+n; actualizarDatos(); }
+
+function actualizarDatos(){
+    let ubi="400"+document.getElementById("sel-pasillo").value+document.getElementById("in-fila").value.padStart(3,"0")+"0";
+    datosFiltrados=excelData.filter(r=>r.ubicacion===ubi);
+    let c=document.getElementById("sku-container"); c.innerHTML="";
+    if(datosFiltrados.length==0){ 
+        document.getElementById("lbl-desc").innerText="VACÍO"; document.getElementById("lotes-container").innerHTML=""; 
+        skuSeleccionado=null; loteSeleccionado=null; return; 
+    }
+    let skus=[...new Set(datosFiltrados.map(r=>r.skuVisual))];
+    skus.forEach(s=>{
+        let btn=document.createElement("div"); btn.className="tab-btn"; btn.innerText="SKU "+s;
+        btn.onclick=()=>{
+            skuSeleccionado=s; [...c.children].forEach(b=>b.classList.remove("active")); btn.classList.add("active");
+            let reg=datosFiltrados.find(r=>r.skuVisual===s); document.getElementById("lbl-desc").innerText=reg.desc;
+            renderLotes();
+        };
+        c.appendChild(btn);
+    });
+    if(c.children[0]) c.children[0].click();
+}
+
+function renderLotes(){
+    let c=document.getElementById("lotes-container"); c.innerHTML="";
+    datosFiltrados.filter(r=>r.skuVisual===skuSeleccionado).forEach(r=>{
+        let btn=document.createElement("div"); btn.className="lote-btn"; btn.innerText="Lote "+r.lote;
+        btn.onclick=()=>{
+            loteSeleccionado=r.lote; [...c.children].forEach(b=>b.classList.remove("active")); btn.classList.add("active");
+            // CARGAMOS SIEMPRE LA CANTIDAD ORIGINAL DEL EXCEL
+            document.getElementById("in-cantidad").value = r.cantOriginal; 
+            actualizarTotal();
+        };
+        c.appendChild(btn);
+    });
+    if(c.children[0]) c.children[0].click();
+}
+
+function actualizarTotal(){
+    // El total se calcula sumando las cantidades originales + la modificación actual en pantalla
+    let sumaOriginales = datosFiltrados
+        .filter(r=>r.skuVisual===skuSeleccionado && r.lote !== loteSeleccionado)
+        .reduce((a,b)=>a+b.cantOriginal, 0);
+    
+    let cantActual = parseInt(document.getElementById("in-cantidad").value) || 0;
+    let total = sumaOriginales + cantActual;
+    
+    document.getElementById("lbl-total").innerText = total;
+    let reg = datosFiltrados.find(r=>r.skuVisual===skuSeleccionado && r.lote===loteSeleccionado);
+    let pal = reg ? reg.pallet : 0;
+    document.getElementById("lbl-pallets").innerText = pal ? Math.ceil(total/pal) : 0;
+}
+
+const qrObj=new QRCode(document.getElementById("qrcode"),{width:250,height:250});
+
+function mostrarQr(txt){ 
+    document.getElementById("main-screen").style.display="none"; 
+    document.getElementById("qr-screen").style.display="flex"; 
+    document.getElementById("qr-text").innerText=txt; 
+    qrObj.clear(); qrObj.makeCode(txt); 
+}
+
+function cerrarQr(){ 
+    document.getElementById("qr-screen").style.display="none"; 
+    document.getElementById("main-screen").style.display="block"; 
+    setTimeout(() => { document.getElementById("seccion-contenido").scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+}
+
+function generarQrUbicacion(){ 
+    let p=document.getElementById("sel-pasillo").value; 
+    let f=document.getElementById("in-fila").value.padStart(3,"0"); 
+    mostrarQr("U"+" ".repeat(21)+"400"+p+f+"0"); 
+}
+
+function generarQrLote(){
+    if(!loteSeleccionado){ alert("Seleccione un lote"); return; }
+    let r=datosFiltrados.find(x=>x.skuVisual===skuSeleccionado && x.lote===loteSeleccionado);
+    if(!r) return;
+    let s=String(r.skuJDE).padStart(8,"0"); 
+    let l=String(r.lote).trim().padStart(17," ");
+    let c=String(document.getElementById("in-cantidad").value).padStart(4,"0");
+    mostrarQr("H"+s+l+c);
+}
+</script>
+</body>
+</html>
