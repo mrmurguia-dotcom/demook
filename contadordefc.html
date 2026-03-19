@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contador de Comprobantes Peñaflor</title>
+    <!-- Tailwind CSS para el diseño -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js para leer los PDFs localmente -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <style>
+        .drag-active { background-color: #f0fdf4; border-color: #22c55e; }
+        .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
+
+    <div class="max-w-5xl mx-auto p-6 pt-10">
+        <!-- Encabezado con Título y Logo -->
+        <div class="flex flex-col md:flex-row justify-between items-start mb-8 gap-4 border-b border-slate-200 pb-6">
+            <div class="text-left">
+                <h1 class="text-3xl font-extrabold text-blue-900 mb-1">Contador de Comprobantes Peñaflor</h1>
+                <p class="text-slate-500 font-medium">by Mariano Murguia</p>
+                <p class="text-sm text-slate-400 mt-2 italic">Procesamiento local de Facturas y Remitos agrupados por Carta de Porte</p>
+            </div>
+            
+            <div class="bg-white p-2 rounded-lg shadow-sm border border-slate-100 flex items-center justify-center">
+                <!-- Logo del Grupo Peñaflor -->
+                <img src="image_041bbb.png" alt="Logo Grupo Peñaflor" class="h-16 w-auto object-contain" onerror="this.src='https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR_wV67_60_K0_uS6W7zE-u8_P_uB1X-oWzjw&s'">
+            </div>
+        </div>
+
+        <!-- Zona de subida de archivos -->
+        <div id="dropZone" class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 hover:border-blue-400 hover:bg-blue-50/30 shadow-sm mb-6 group">
+            <div class="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            </div>
+            <p class="text-xl font-semibold text-slate-700">Arrastra tus archivos PDF aquí</p>
+            <p class="text-sm text-slate-500 mt-2 uppercase tracking-wider font-bold">o haz clic para seleccionar</p>
+            <input type="file" id="fileInput" accept="application/pdf" multiple class="hidden" />
+        </div>
+
+        <div id="messageBox" class="hidden mb-6 p-4 rounded-xl text-sm font-medium animate-pulse"></div>
+
+        <div id="loadingIndicator" class="hidden flex flex-col items-center justify-center py-12">
+            <div class="spinner mb-4"></div>
+            <p class="text-blue-700 font-bold">PROCESANDO DOCUMENTOS...</p>
+        </div>
+
+        <!-- Resultados -->
+        <div id="resultsContainer" class="hidden space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center p-6 bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-2xl shadow-lg">
+                <div>
+                    <h2 class="text-xl font-bold">Resumen Consolidado</h2>
+                    <p class="text-blue-200 text-xs uppercase tracking-widest mt-1">Generado por Mariano Murguia</p>
+                </div>
+                <button onclick="exportToCSV()" class="mt-4 sm:mt-0 bg-green-500 hover:bg-green-600 text-white px-6 py-2.5 rounded-xl font-bold transition-all transform hover:scale-105 flex items-center gap-2 shadow-md">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Exportar a Excel
+                </button>
+            </div>
+            
+            <div id="groupedTablesContainer" class="grid grid-cols-1 gap-6">
+                <!-- Se llena dinámicamente -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const groupedTablesContainer = document.getElementById('groupedTablesContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const messageBox = document.getElementById('messageBox');
+
+        let groupedDataStore = {};
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { 
+            e.preventDefault(); 
+            dropZone.classList.add('drag-active'); 
+        });
+        dropZone.addEventListener('dragleave', () => { 
+            dropZone.classList.remove('drag-active'); 
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-active');
+            if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) handleFiles(fileInput.files);
+        });
+
+        function showMessage(msg, isError = false) {
+            messageBox.textContent = msg;
+            messageBox.className = `mb-6 p-4 rounded-xl text-sm font-bold ${isError ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'} block text-center`;
+        }
+
+        function hideMessage() { messageBox.classList.add('hidden'); }
+
+        function parseArgentineNumber(str) {
+            if (!str) return 0;
+            let cleanStr = str.replace(/\./g, '').replace(',', '.');
+            let num = parseFloat(cleanStr);
+            return isNaN(num) ? 0 : num;
+        }
+
+        async function handleFiles(files) {
+            hideMessage();
+            resultsContainer.classList.add('hidden');
+            loadingIndicator.classList.remove('hidden');
+            groupedTablesContainer.innerHTML = '';
+            groupedDataStore = {};
+            
+            let allDocsMap = {};
+
+            try {
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (file.type !== 'application/pdf') continue;
+
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    
+                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                        const page = await pdf.getPage(pageNum);
+                        const textContent = await page.getTextContent();
+                        let pageText = textContent.items.map(item => item.str).join(' ').replace(/\s+/g, ' ');
+
+                        // Detectar número del documento principal (ej: 00418 - 00666396)
+                        const docMatch = pageText.match(/Nro\.?\s*:\s*(\d{4,5}\s*-\s*\d{8})/i);
+                        
+                        if (docMatch) {
+                            const currentDocNumber = docMatch[1];
+                            let docType = "Documento"; // Valor por defecto
+
+                            // --- LÓGICA CORREGIDA PARA REMITOS VS FACTURAS ---
+                            // Buscamos indicadores fuertes de que es un Remito ("Remito R" o la frase legal)
+                            if (pageText.match(/Documento\s+no\s+v[aá]lido\s+como\s+factura/i) || pageText.match(/Remito\s+[R]/i)) {
+                                docType = "Remito";
+                            } 
+                            // Si no es un remito, vemos si dice Factura A, B, C, etc. o simplemente Factura
+                            else if (pageText.match(/Factura\s+[A-C]/i) || pageText.match(/Factura/i)) {
+                                docType = "Factura";
+                            } 
+                            // Fallback por si acaso
+                            else if (pageText.match(/Remito/i)) {
+                                docType = "Remito";
+                            }
+
+                            // Evitar duplicados si el PDF tiene varias páginas para el mismo documento
+                            if (!allDocsMap[currentDocNumber]) {
+                                allDocsMap[currentDocNumber] = {
+                                    tipo: docType,
+                                    numero: currentDocNumber,
+                                    cartaPorte: 'Sin CP',
+                                    cajas: 0,
+                                    unidades: 0
+                                };
+                            }
+
+                            // Carta de Porte
+                            const cpMatch = pageText.match(/Carta\s+Porte.*?:\s*(\d+)/i);
+                            if (cpMatch) allDocsMap[currentDocNumber].cartaPorte = cpMatch[1];
+
+                            // Cajas
+                            const cajasMatch = pageText.match(/Total\s+Cajas\s*:\s*([\d.,]+)/i);
+                            if (cajasMatch) allDocsMap[currentDocNumber].cajas = parseArgentineNumber(cajasMatch[1]);
+
+                            // Botellas / Unidades
+                            const uniMatch = pageText.match(/(?:Total\s+Unidades|Botellas)\s*:\s*([\d.,]+)/i);
+                            if (uniMatch) allDocsMap[currentDocNumber].unidades = parseArgentineNumber(uniMatch[1]);
+                        }
+                    }
+                }
+
+                // Agrupar por Carta de Porte
+                Object.values(allDocsMap).forEach(doc => {
+                    const cp = doc.cartaPorte;
+                    if (!groupedDataStore[cp]) {
+                        groupedDataStore[cp] = { docs: [], totalCajas: 0, totalUnidades: 0 };
+                    }
+                    groupedDataStore[cp].docs.push(doc);
+                    groupedDataStore[cp].totalCajas += doc.cajas;
+                    groupedDataStore[cp].totalUnidades += doc.unidades;
+                });
+
+                if (Object.keys(groupedDataStore).length === 0) {
+                    showMessage("No se encontraron documentos válidos. Asegúrate de que sean PDFs de Peñaflor.", true);
+                } else {
+                    renderGroupedResults(groupedDataStore);
+                    resultsContainer.classList.remove('hidden');
+                }
+
+            } catch (error) {
+                console.error(error);
+                showMessage("Ocurrió un error al procesar los archivos PDF.", true);
+            } finally {
+                loadingIndicator.classList.add('hidden');
+                fileInput.value = ''; // Resetear el input para permitir volver a subir el mismo archivo
+            }
+        }
+
+        function renderGroupedResults(groupedData) {
+            const sortedCPs = Object.keys(groupedData).sort();
+            sortedCPs.forEach(cp => {
+                const group = groupedData[cp];
+                const tableDiv = document.createElement('div');
+                tableDiv.className = 'bg-white shadow-md rounded-2xl overflow-hidden border border-slate-200 transition-all hover:shadow-lg';
+                
+                let rows = group.docs.map(doc => {
+                    // Colores distintos para diferenciar visualmente Facturas y Remitos
+                    const isFactura = doc.tipo === 'Factura';
+                    const typeColor = isFactura ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700';
+                    
+                    return `
+                        <tr class="border-b border-slate-50 hover:bg-slate-50/80">
+                            <td class="p-4"><span class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${typeColor}">${doc.tipo}</span></td>
+                            <td class="p-4 font-mono text-slate-600">${doc.numero}</td>
+                            <td class="p-4 text-right font-medium">${doc.cajas.toLocaleString('es-AR')}</td>
+                            <td class="p-4 text-right font-medium">${doc.unidades.toLocaleString('es-AR')}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                tableDiv.innerHTML = `
+                    <div class="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-blue-900 text-white p-2 rounded-lg">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            </div>
+                            <h3 class="text-base font-bold text-slate-800">Carta de Porte: <span class="text-blue-700 font-black">${cp}</span></h3>
+                        </div>
+                        <span class="bg-white px-3 py-1 rounded-full text-xs font-bold text-slate-500 border border-slate-200 shadow-sm">${group.docs.length} Ítems</span>
+                    </div>
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="text-[10px] uppercase tracking-widest text-slate-400 border-b bg-white font-bold">
+                                <th class="p-4">Tipo</th><th class="p-4">Número</th>
+                                <th class="p-4 text-right">Cajas</th><th class="p-4 text-right">Botellas</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm text-slate-700">${rows}</tbody>
+                        <tfoot class="bg-blue-50/50 font-bold text-blue-900 border-t border-blue-100">
+                            <tr>
+                                <td colspan="2" class="p-4 text-right text-xs tracking-widest uppercase">Subtotal Agrupado:</td>
+                                <td class="p-4 text-right text-base">${group.totalCajas.toLocaleString('es-AR')}</td>
+                                <td class="p-4 text-right text-base">${group.totalUnidades.toLocaleString('es-AR')}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                `;
+                groupedTablesContainer.appendChild(tableDiv);
+            });
+        }
+
+        function exportToCSV() {
+            let csv = "\uFEFF"; // Byte Order Mark para compatibilidad con Excel
+            csv += "Carta de Porte;Tipo;Numero;Cajas;Unidades\n";
+            Object.keys(groupedDataStore).forEach(cp => {
+                const group = groupedDataStore[cp];
+                group.docs.forEach(d => {
+                    csv += `${cp};${d.tipo};${d.numero};${d.cajas};${d.unidades}\n`;
+                });
+                csv += `TOTAL CP ${cp};-;-;${group.totalCajas};${group.totalUnidades}\n\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute("download", "Reporte_Pennaflor_Murguia.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
