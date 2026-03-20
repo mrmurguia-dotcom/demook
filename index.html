@@ -22,13 +22,17 @@
 
         .btn { display: inline-block; width: 280px; padding: 15px 20px; background: #1e3a5f; color: white; 
                text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; 
-               box-shadow: 0 4px 6px rgba(30, 58, 95, 0.2); transition: background 0.3s ease; }
+               box-shadow: 0 4px 6px rgba(30, 58, 95, 0.2); transition: transform 0.2s, background 0.3s ease; }
         
+        .btn:active { transform: scale(0.98); }
         .btn:hover { background: #142842; }
 
-        /* Color diferente para el nuevo sistema para distinguirlos */
-        .btn-secondary { background: #2e7d32; }
+        /* Colores diferentes para distinguir los sistemas */
+        .btn-secondary { background: #2e7d32; } /* Verde para Anexo y Cava */
         .btn-secondary:hover { background: #1b5e20; }
+
+        .btn-picking { background: #ef6c00; } /* Naranja para Picking */
+        .btn-picking:hover { background: #e65100; }
     </style>
 </head>
 <body>
@@ -41,6 +45,8 @@
         <a href="qrautoestiba/index.html" class="btn">Autoestiba - Sistema de Voz</a>
 
         <a href="qrcavayanexo/index.html" class="btn btn-secondary">Anexo y Cava - Sistema de Voz</a>
+
+        <a href="qrpicking/index.html" class="btn btn-picking">Picking - Sistema de Voz</a>
     </div>
 </body>
 </html>
