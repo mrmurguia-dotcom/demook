@@ -7,15 +7,28 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 30px; background: #f9fbfd; color: #333; }
         
-        /* Acá le decimos que la clase logom2 tenga un máximo de 150px */
         .logom2 { max-width: 150px; margin-bottom: 20px; } 
         
         h1 { color: #1e3a5f; margin-bottom: 10px; font-size: 24px; }
         p { color: #666; font-size: 16px; margin-bottom: 30px; }
-        .btn { display: inline-block; padding: 15px 30px; background: #1e3a5f; color: white; 
+        
+        /* Contenedor para organizar los botones */
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .btn { display: inline-block; width: 280px; padding: 15px 20px; background: #1e3a5f; color: white; 
                text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; 
                box-shadow: 0 4px 6px rgba(30, 58, 95, 0.2); transition: background 0.3s ease; }
+        
         .btn:hover { background: #142842; }
+
+        /* Color diferente para el nuevo sistema para distinguirlos */
+        .btn-secondary { background: #2e7d32; }
+        .btn-secondary:hover { background: #1b5e20; }
     </style>
 </head>
 <body>
@@ -24,6 +37,10 @@
     <h1>Inventario AZA - Peñaflor</h1>
     <p>Desarrollado por M2 Consultoría Digital</p>
     
-    <a href="qrautoestiba/index.html" class="btn">Sistema de Voz - Autoestiba</a>
+    <div class="button-container">
+        <a href="qrautoestiba/index.html" class="btn">Autoestiba - Sistema de Voz</a>
+
+        <a href="qrcavayanexo/index.html" class="btn btn-secondary">A</a>Anexo y Cava - Sistema de Voz</a>
+    </div>
 </body>
 </html>
