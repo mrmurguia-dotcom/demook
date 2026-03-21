@@ -69,6 +69,15 @@
 
         <a href="qrunidades/index.html" class="btn btn-unidades">Unidades - Sistema de Voz</a>
     </div>
+    <script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/Penaflor/sw.js")
+      .then(reg => console.log("✅ SW registrado", reg.scope))
+      .catch(err => console.error("❌ Error SW", err));
+  });
+}
+</script>
 
 </body>
 </html>
