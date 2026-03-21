@@ -1,3 +1,75 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR INVENTARIO AZA (UNIDADES)</title>
+
+```
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+    body { font-family: 'Segoe UI', sans-serif; background-color: #f3f6f9; color: #1e3a8a; padding-bottom: 120px; }
+    .aza-card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); padding: 1.5rem; margin-bottom: 1.2rem; border: 1px solid #e5e7eb; }
+    .btn-cargar-planilla { background-color: #23395d; color: white; font-weight: bold; width: 100%; padding: 14px; border-radius: 8px; }
+    .input-archivo-excel { border: 1px solid #d1d5db; border-radius: 8px; padding: 10px; width: 100%; margin-bottom: 12px; }
+    .btn-scan { background-color: #3b82f6; color: white; font-weight: 800; border-radius: 10px; }
+    .mic-float { position: fixed; bottom: 25px; right: 25px; width: 70px; height: 70px; background-color: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .mic-float.listening { background-color: #ef4444; }
+</style>
+```
+
+</head>
+
+<body class="p-4 max-w-lg mx-auto">
+
+<header class="text-center mb-6 mt-4">
+    <h1 class="text-2xl font-black">QR INVENTARIO AZA (UNIDADES)</h1>
+</header>
+
+<div class="aza-card">
+    <input type="file" id="upload-excel" accept=".xlsx, .xls" class="input-archivo-excel">
+    <button onclick="importarExcel()" class="btn-cargar-planilla">CARGAR PLANILLA</button>
+</div>
+
+<div class="aza-card">
+    <button onclick="toggleScanner()" class="w-full btn-scan py-4 mb-4">📷 Escanear</button>
+    <div id="scanner-container" class="hidden"><div id="reader"></div></div>
+
+```
+<div class="flex gap-2 mt-3">
+    <input type="text" id="cdb-manual" placeholder="Código" class="border p-2 w-full">
+    <button onclick="buscarManual()">OK</button>
+</div>
+```
+
+</div>
+
+<div id="panel-control" class="aza-card hidden">
+    <div class="text-center">
+        <span id="display-desc"></span>
+        <h2 id="display-sku"></h2>
+
+```
+    <input type="number" id="cant-manual" value="1" class="text-center text-2xl w-full mt-3">
+    <button onclick="registrarFinal()" class="bg-green-600 text-white w-full mt-3 p-3">Registrar</button>
+    <button onclick="resetPanel()" class="text-red-500 mt-2">Cancelar</button>
+</div>
+```
+
+</div>
+
+<div class="aza-card">
+    <div id="counter">0 ITEMS</div>
+    <div id="history"></div>
+    <button onclick="exportarExcel()" class="bg-green-700 text-white w-full mt-4 p-3">Descargar</button>
+</div>
+
+<div id="mic-btn" class="mic-float" onclick="activarVoz()">🎤</div>
+
 <script>
 let MAESTRA = {};
 let STOCK_LEGACY = [];
@@ -8,9 +80,7 @@ let tempItem = null;
 
 const synth = window.speechSynthesis;
 
-// =========================
-// 🔵 LOCAL STORAGE
-// =========================
+// ================= LOCAL STORAGE =================
 
 function guardarLocal() {
     localStorage.setItem("MAESTRA", JSON.stringify(MAESTRA));
@@ -18,18 +88,12 @@ function guardarLocal() {
 
 function cargarLocal() {
     const data = localStorage.getItem("MAESTRA");
-    if(data) {
-        MAESTRA = JSON.parse(data);
-        console.log("MAESTRA cargada desde localStorage");
-    }
+    if(data) MAESTRA = JSON.parse(data);
 }
 
-// Cargar al iniciar
 cargarLocal();
 
-// =========================
-// 🔵 VOZ
-// =========================
+// ================= VOZ =================
 
 function hablar(texto) {
     if (!('speechSynthesis' in window)) return;
@@ -39,231 +103,154 @@ function hablar(texto) {
     synth.speak(utter);
 }
 
-// =========================
-// 🔵 IMPORTAR EXCEL
-// =========================
+// ================= IMPORTAR =================
 
 function importarExcel() {
-    const fileInput = document.getElementById('upload-excel');
-    const file = fileInput.files[0];
-    if(!file) return alert("Selecciona un archivo primero.");
+    const file = document.getElementById('upload-excel').files[0];
+    if(!file) return alert("Selecciona archivo");
 
     const reader = new FileReader();
 
     reader.onload = function(e) {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
 
-            const hojaD = workbook.SheetNames.find(n => n.trim().toLowerCase() === "datos");
-            const hojaL = workbook.SheetNames.find(n => n.trim().toLowerCase() === "legacy vstockpt");
+        const hojaD = workbook.SheetNames.find(n => n.toLowerCase().includes("datos"));
+        const ws = workbook.Sheets[hojaD];
+        const rows = XLSX.utils.sheet_to_json(ws);
 
-            if(!hojaD) throw new Error("No se encontró la pestaña 'Datos'.");
+        MAESTRA = {};
 
-            const wsD = workbook.Sheets[hojaD];
-            const rowsD = XLSX.utils.sheet_to_json(wsD);
-
-            MAESTRA = {};
-
-            rowsD.forEach(r => {
-                const cleanedRow = {};
-                Object.keys(r).forEach(key => cleanedRow[key.trim().toUpperCase()] = r[key]);
-
-                const cdb = String(cleanedRow["CDB"] || "").trim();
-
-                if(cdb) {
-                    MAESTRA[cdb] = {
-                        sku: cleanedRow["ART."] || cleanedRow["SKU"],
-                        desc: cleanedRow["DESCRIPCION"],
-                        uxc: cleanedRow["UNIDADES X CAJA"] || 1
-                    };
-                }
-            });
-
-            // 🔥 Guardar también lo importado
-            guardarLocal();
-
-            if(hojaL) {
-                const wsL = workbook.Sheets[hojaL];
-                STOCK_LEGACY = XLSX.utils.sheet_to_json(wsL);
+        rows.forEach(r => {
+            const cdb = String(r["CDB"] || "").trim();
+            if(cdb) {
+                MAESTRA[cdb] = {
+                    sku: r["ART."] || r["SKU"],
+                    desc: r["DESCRIPCION"],
+                    uxc: r["UNIDADES X CAJA"] || 1
+                };
             }
+        });
 
-            hablar("Planilla lista");
-            alert("Cargados " + Object.keys(MAESTRA).length + " códigos.");
-
-        } catch(err) {
-            alert("Error al procesar: " + err.message);
-        }
+        guardarLocal();
+        alert("Cargados " + Object.keys(MAESTRA).length);
     };
 
     reader.readAsArrayBuffer(file);
 }
 
-// =========================
-// 🔵 SCANNER
-// =========================
+// ================= SCAN =================
 
 async function toggleScanner() {
     const cont = document.getElementById('scanner-container');
 
     if(!html5QrCode) {
         cont.classList.remove('hidden');
-
         html5QrCode = new Html5Qrcode("reader");
 
         html5QrCode.start(
             { facingMode: "environment" },
-            { fps: 15, qrbox: 250 },
+            { fps: 10 },
             (text) => {
                 procesarDato(text);
-
-                html5QrCode.stop().then(() => {
-                    html5QrCode = null;
-                    cont.classList.add('hidden');
-                });
+                html5QrCode.stop();
+                html5QrCode = null;
+                cont.classList.add('hidden');
             }
         );
-
-    } else {
-        html5QrCode.stop().then(() => {
-            html5QrCode = null;
-            cont.classList.add('hidden');
-        });
     }
 }
 
 function buscarManual() {
-    const val = document.getElementById('cdb-manual').value.trim();
+    const val = document.getElementById('cdb-manual').value;
     if(val) procesarDato(val);
 }
 
-// =========================
-// 🔵 PROCESAR CDB
-// =========================
+// ================= PROCESAR =================
 
 function procesarDato(cdb) {
-    const item = MAESTRA[cdb];
+    let item = MAESTRA[cdb];
 
     if(!item) {
-        hablar("No encontrado");
+        if(confirm("No existe. ¿Registrar?")) {
+            const sku = prompt("SKU:");
+            const desc = prompt("Descripción:");
 
-        const confirmar = confirm("Código no existe. ¿Deseas registrarlo?");
-        if(!confirmar) return;
-
-        const sku = prompt("Ingresar SKU:");
-        if(!sku) return;
-
-        const desc = prompt("Ingresar Descripción:");
-        if(!desc) return;
-
-        MAESTRA[cdb] = {
-            sku: sku,
-            desc: desc,
-            uxc: 1
-        };
-
-        // 🔥 Guardar en localStorage
-        guardarLocal();
-
-        hablar("Producto registrado");
-
-        tempItem = MAESTRA[cdb];
-    } else {
-        tempItem = item;
+            if(sku && desc) {
+                MAESTRA[cdb] = { sku, desc, uxc:1 };
+                guardarLocal();
+                item = MAESTRA[cdb];
+            } else return;
+        } else return;
     }
 
-    document.getElementById('display-sku').innerText = `SKU: ${tempItem.sku}`;
-    document.getElementById('display-desc').innerText = tempItem.desc;
-    document.getElementById('panel-control').classList.remove('hidden');
+    tempItem = item;
 
-    hablar("Ese Ka U " + String(tempItem.sku).split('').join(' '));
+    document.getElementById('display-sku').innerText = item.sku;
+    document.getElementById('display-desc').innerText = item.desc;
+    document.getElementById('panel-control').classList.remove('hidden');
 }
 
-// =========================
-// 🔵 REGISTRAR
-// =========================
+// ================= REGISTRAR =================
 
 function registrarFinal() {
     const cant = parseInt(document.getElementById('cant-manual').value);
     if(!tempItem || isNaN(cant)) return;
 
-    const loteRow = STOCK_LEGACY.find(f => 
-        String(f['SKU'] || f['articulo'] || '').trim() === String(tempItem.sku).trim() && 
-        String(f['TIPO'] || '').trim().toUpperCase() === "PICK"
-    );
-
     DATA_SESION.unshift({
-        Ubicacion: "UNIDADES",
         SKU: tempItem.sku,
         Descripción: tempItem.desc,
-        "Lote/ serie": loteRow ? loteRow['Lote'] : "SIN LOTE",
-        Cantidad_UN: cant,
-        UN: "UN",
-        Cantidad_CA: (cant / tempItem.uxc).toFixed(2),
-        CA: "CA"
+        Cantidad_UN: cant
     });
 
     actualizarHistorial();
-    hablar("Registrado");
     resetPanel();
 }
 
-// =========================
-// 🔵 ELIMINAR ITEM
-// =========================
+// ================= ELIMINAR =================
 
 function eliminarItem(index) {
-    const confirmar = confirm("¿Eliminar este registro?");
-    if(!confirmar) return;
-
-    DATA_SESION.splice(index, 1);
-    actualizarHistorial();
-    hablar("Eliminado");
+    if(confirm("Eliminar?")) {
+        DATA_SESION.splice(index,1);
+        actualizarHistorial();
+    }
 }
 
-// =========================
-// 🔵 UI
-// =========================
+// ================= UI =================
 
 function resetPanel() {
     document.getElementById('panel-control').classList.add('hidden');
-    document.getElementById('cdb-manual').value = "";
-    document.getElementById('cant-manual').value = "1";
 }
 
 function actualizarHistorial() {
-    document.getElementById('counter').innerText = `${DATA_SESION.length} ITEMS`;
+    document.getElementById('counter').innerText = DATA_SESION.length + " ITEMS";
 
-    document.getElementById('history').innerHTML = DATA_SESION.map((d, index) => `
-        <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border-l-4 border-blue-500 mb-2">
-            
-            <div class="flex-1">
-                <span class="text-[10px] font-bold text-gray-400 block">${d.SKU}</span>
-                <span class="text-xs font-bold text-blue-900">${d.Descripción}</span>
+    document.getElementById('history').innerHTML = DATA_SESION.map((d,i)=>`
+        <div class="flex justify-between border p-2 mt-2">
+            <div>${d.SKU} - ${d.Descripción}</div>
+            <div>
+                ${d.Cantidad_UN}
+                <button onclick="eliminarItem(${i})">❌</button>
             </div>
-
-            <div class="text-right mr-3">
-                <span class="text-xl font-black text-green-600">${d.Cantidad_UN}</span>
-                <span class="text-[8px] font-bold block text-gray-400">UN</span>
-            </div>
-
-            <button onclick="eliminarItem(${index})"
-                class="bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-bold">
-                ❌
-            </button>
-
         </div>
     `).join('');
 }
 
-// =========================
-// 🔵 EXPORTAR
-// =========================
+// ================= EXPORTAR =================
 
 function exportarExcel() {
     const ws = XLSX.utils.json_to_sheet(DATA_SESION);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Inventario");
-    XLSX.writeFile(wb, "Inventario_UNIDADES.xlsx");
+    XLSX.writeFile(wb, "Inventario.xlsx");
+}
+
+// ================= VOZ =================
+
+function activarVoz() {
+    alert("Voz activa (demo)");
 }
 </script>
+
+</body>
+</html>
