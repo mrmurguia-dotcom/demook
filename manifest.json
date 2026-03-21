@@ -1,0 +1,20 @@
+{
+  "name": "Inventario AZA Peñaflor",
+  "short_name": "Inventario AZA",
+  "start_url": "/Penaflor/index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e3a5f",
+  "icons": [
+    {
+      "src": "/Penaflor/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/Penaflor/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
