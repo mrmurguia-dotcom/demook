@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR INVENTARIO AZA (UNIDADES)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap');
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f3f6f9; color: #1e3a8a; padding-bottom: 120px; }
+        .aza-card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); padding: 1.5rem; margin-bottom: 1.2rem; border: 1px solid #e5e7eb; }
+        .btn-cargar-planilla { background-color: #23395d; color: white; font-weight: bold; width: 100%; padding: 14px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 10px; text-transform: uppercase; font-size: 0.9rem; }
+        .input-archivo-excel { border: 1px solid #d1d5db; border-radius: 8px; padding: 10px; width: 100%; font-size: 0.85rem; margin-bottom: 12px; background: #fff; }
+        .btn-scan { background-color: #3b82f6; color: white; font-weight: 800; border-radius: 10px; }
+        .mic-float { position: fixed; bottom: 25px; right: 25px; width: 70px; height: 70px; background-color: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(59,130,246,0.6); cursor: pointer; z-index: 100; border: 3px solid white; }
+        .mic-float.listening { background-color: #ef4444; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        .input-manual-border { border: 2px solid #d1d5db; border-radius: 10px; padding: 12px; width: 100%; text-align: center; font-weight: bold; font-size: 1.2rem; color: #1e3a8a; }
+    </style>
+</head>
+<body class="p-4 max-w-lg mx-auto">
+
+    <header class="text-center mb-6 mt-4">
+        <h1 class="text-2xl font-black text-[#1e3a8a]">QR INVENTARIO AZA <span class="text-blue-600">(UNIDADES)</span></h1>
+        <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest italic">by M2 Consultoria Digital</p>
+    </header>
+
+    <div class="aza-card">
+        <label class="text-[11px] font-bold text-[#1e3a8a] block mb-3 uppercase tracking-tight">Cargar Excel Base</label>
+        <input type="file" id="upload-excel" accept=".xlsx, .xls" class="input-archivo-excel">
+        <button onclick="importarExcel()" class="btn-cargar-planilla">
+            <span>📂</span> CARGAR PLANILLA
+        </button>
+    </div>
+
+    <div class="aza-card">
+        <label class="text-[11px] font-bold text-gray-400 block mb-2 uppercase">Escanear o Tipear CDB</label>
+        <button onclick="toggleScanner()" id="btn-camara" class="w-full btn-scan py-4 flex items-center justify-center gap-3 mb-4 shadow-lg text-lg text-center uppercase">📷 Abrir Escáner</button>
+        <div id="scanner-container" class="hidden mb-4 border-2 border-blue-500 rounded-xl p-1"><div id="reader"></div></div>
+        <div class="flex gap-2">
+            <input type="text" id="cdb-manual" placeholder="Código de Barras" class="input-manual-border">
+            <button onclick="buscarManual()" class="bg-blue-100 text-blue-700 px-6 rounded-xl font-black text-sm border-2 border-blue-200 uppercase">OK</button>
+        </div>
+    </div>
+
+    <div id="panel-control" class="aza-card hidden border-2 border-green-400 bg-green-50">
+        <div class="text-center">
+            <span id="display-desc" class="text-xs font-bold text-gray-500 uppercase block mb-1">---</span>
+            <span id="display-sku" class="text-3xl font-black text-blue-800 block mb-4 tracking-tighter">SKU: ---</span>
+            <div class="bg-white p-4 rounded-2xl shadow-inner">
+                <span class="text-[10px] font-bold text-green-600 uppercase block mb-2">Unidades Contadas</span>
+                <input type="number" id="cant-manual" value="1" class="text-4xl font-black text-center text-green-700 w-full outline-none bg-transparent">
+                <button onclick="registrarFinal()" class="w-full bg-green-600 text-white py-4 rounded-xl font-black text-lg shadow-lg mt-4 uppercase">✅ Registrar</button>
+            </div>
+            <button onclick="resetPanel()" class="mt-4 text-[10px] font-bold text-red-400 uppercase tracking-widest">❌ Cancelar</button>
+        </div>
+    </div>
+
+    <div class="aza-card">
+        <div class="flex justify-between items-center mb-4 border-b pb-2">
+            <span class="text-[11px] font-bold text-gray-400 uppercase">Contenido</span>
+            <span id="counter" class="text-xs font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">0 ITEMS</span>
+        </div>
+        <div id="history" class="space-y-2 max-h-48 overflow-y-auto"></div>
+        <button onclick="exportarExcel()" class="w-full mt-6 bg-green-700 text-white py-4 rounded-xl font-black text-sm shadow-xl uppercase">📥 Descargar Inventario</button>
+    </div>
+
+    <div id="mic-btn" class="mic-float" onclick="activarVoz()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+        </svg>
+    </div>
+
+    <script>
+        let MAESTRA = {}; let STOCK_LEGACY = []; let DATA_SESION = [];
+        let html5QrCode = null; let tempItem = null;
+        const synth = window.speechSynthesis;
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = (SpeechRecognition) ? new SpeechRecognition() : null;
+        if(recognition) { recognition.lang = 'es-ES'; recognition.interimResults = false; }
+
+        function hablar(texto) { synth.cancel(); const utter = new SpeechSynthesisUtterance(texto); utter.lang = 'es-ES'; synth.speak(utter); }
+
+        function importarExcel() {
+            const fileInput = document.getElementById('upload-excel');
+            const file = fileInput.files[0];
+            if(!file) return alert("Selecciona un archivo primero.");
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+
+                    // Búsqueda de hojas ignorando espacios (Capturas 1 y 2)
+                    const hojaD = workbook.SheetNames.find(n => n.trim().toLowerCase() === "datos");
+                    const hojaL = workbook.SheetNames.find(n => n.trim().toLowerCase() === "legacy vstockpt");
+
+                    if(!hojaD) throw new Error("No se encontró la pestaña 'Datos'.");
+
+                    // Carga de Productos (Pestaña Datos)
+                    const wsD = workbook.Sheets[hojaD];
+                    const rowsD = XLSX.utils.sheet_to_json(wsD);
+                    MAESTRA = {};
+                    rowsD.forEach(r => {
+                        // Limpieza de nombres de columnas por si tienen espacios (Captura 1)
+                        const cleanedRow = {};
+                        Object.keys(r).forEach(key => cleanedRow[key.trim().toUpperCase()] = r[key]);
+                        
+                        const cdb = String(cleanedRow["CDB"] || "").trim();
+                        if(cdb) {
+                            MAESTRA[cdb] = {
+                                sku: cleanedRow["ART."] || cleanedRow["SKU"],
+                                desc: cleanedRow["DESCRIPCION"],
+                                uxc: cleanedRow["UNIDADES X CAJA"] || 1
+                            };
+                        }
+                    });
+
+                    // Carga de Lotes (Pestaña Legacy)
+                    if(hojaL) {
+                        const wsL = workbook.Sheets[hojaL];
+                        STOCK_LEGACY = XLSX.utils.sheet_to_json(wsL);
+                    }
+
+                    hablar("Planilla lista");
+                    alert("Cargados " + Object.keys(MAESTRA).length + " códigos.");
+                } catch(err) {
+                    alert("Error al procesar: " + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function toggleScanner() {
+            const cont = document.getElementById('scanner-container');
+            if(!html5QrCode) {
+                cont.classList.remove('hidden');
+                html5QrCode = new Html5Qrcode("reader");
+                html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (text) => {
+                    procesarDato(text);
+                    html5QrCode.stop().then(() => { html5QrCode = null; cont.classList.add('hidden'); });
+                });
+            } else {
+                html5QrCode.stop().then(() => { html5QrCode = null; cont.classList.add('hidden'); });
+            }
+        }
+
+        function buscarManual() { const val = document.getElementById('cdb-manual').value.trim(); if(val) procesarDato(val); }
+
+        function procesarDato(cdb) {
+            const item = MAESTRA[cdb];
+            if(!item) { hablar("No encontrado"); return alert("Código no existe en Datos."); }
+            tempItem = item;
+            document.getElementById('display-sku').innerText = `SKU: ${item.sku}`;
+            document.getElementById('display-desc').innerText = item.desc;
+            document.getElementById('panel-control').classList.remove('hidden');
+            hablar("Ese Ka U " + String(item.sku).split('').join(' '));
+        }
+
+        function registrarFinal() {
+            const cant = parseInt(document.getElementById('cant-manual').value);
+            if(!tempItem || isNaN(cant)) return;
+
+            const loteRow = STOCK_LEGACY.find(f => 
+                String(f['SKU'] || f['articulo'] || '').trim() === String(tempItem.sku).trim() && 
+                String(f['TIPO'] || '').trim().toUpperCase() === "PICK"
+            );
+            
+            DATA_SESION.unshift({
+                Ubicacion: "UNIDADES",
+                SKU: tempItem.sku,
+                Descripción: tempItem.desc,
+                "Lote/ serie": loteRow ? loteRow['Lote'] : "SIN LOTE",
+                Cantidad_UN: cant,
+                UN: "UN",
+                Cantidad_CA: (cant / tempItem.uxc).toFixed(2),
+                CA: "CA"
+            });
+
+            actualizarHistorial();
+            hablar("Registrado");
+            resetPanel();
+        }
+
+        function resetPanel() {
+            document.getElementById('panel-control').classList.add('hidden');
+            document.getElementById('cdb-manual').value = "";
+            document.getElementById('cant-manual').value = "1";
+        }
+
+        function actualizarHistorial() {
+            document.getElementById('counter').innerText = `${DATA_SESION.length} ITEMS`;
+            document.getElementById('history').innerHTML = DATA_SESION.map(d => `
+                <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border-l-4 border-blue-500 mb-2">
+                    <div class="flex-1"><span class="text-[10px] font-bold text-gray-400 block">${d.SKU}</span><span class="text-xs font-bold text-blue-900">${d.Descripción}</span></div>
+                    <div class="text-right"><span class="text-xl font-black text-green-600">${d.Cantidad_UN}</span><span class="text-[8px] font-bold block text-gray-400">UN</span></div>
+                </div>
+            `).join('');
+        }
+
+        function exportarExcel() {
+            const ws = XLSX.utils.json_to_sheet(DATA_SESION);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+            XLSX.writeFile(wb, "Inventario_UNIDADES.xlsx");
+        }
+        
+        function activarVoz() { if(recognition) { document.getElementById('mic-btn').classList.add('listening'); recognition.start(); } }
+        if(recognition) {
+            recognition.onresult = (event) => {
+                const text = event.results[0][0].transcript.toLowerCase();
+                if(text.includes("cantidad")) {
+                    const n = text.replace(/[^0-9]/g, '');
+                    if(n) { document.getElementById('cant-manual').value = n; hablar("Cantidad " + n); }
+                } else if(text.includes("ok") || text.includes("registrar")) { registrarFinal(); }
+            };
+            recognition.onend = () => document.getElementById('mic-btn').classList.remove('listening');
+        }
+    </script>
+</body>
+</html>
