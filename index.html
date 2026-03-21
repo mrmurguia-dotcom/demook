@@ -3,7 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Panel inventario Peñaflor AZA - M2</title>
+
+    <!-- 🔹 ICONOS (CORREGIDO) -->
+    <link rel="icon" type="image/png" href="/Penaflor/qrautoestiba/icon-512x512.png">
+    <link rel="shortcut icon" href="/Penaflor/qrautoestiba/favicon-32x32.png">
+    <link rel="apple-touch-icon" href="/Penaflor/qrautoestiba/apple-icon-180x180.png">
+    <link rel="manifest" href="/Penaflor/qrautoestiba/manifest.json">
+    <meta name="theme-color" content="#1e3a5f">
+
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 30px; background: #f9fbfd; color: #333; }
         
@@ -12,7 +21,6 @@
         h1 { color: #1e3a5f; margin-bottom: 10px; font-size: 24px; }
         p { color: #666; font-size: 16px; margin-bottom: 30px; }
         
-        /* Contenedor para organizar los botones */
         .button-container {
             display: flex;
             flex-direction: column;
@@ -20,25 +28,36 @@
             align-items: center;
         }
 
-        .btn { display: inline-block; width: 280px; padding: 15px 20px; background: #1e3a5f; color: white; 
-               text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; 
-               box-shadow: 0 4px 6px rgba(30, 58, 95, 0.2); transition: transform 0.2s, background 0.3s ease; }
+        .btn { 
+            display: inline-block; 
+            width: 280px; 
+            padding: 15px 20px; 
+            background: #1e3a5f; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            font-size: 18px; 
+            box-shadow: 0 4px 6px rgba(30, 58, 95, 0.2); 
+            transition: transform 0.2s, background 0.3s ease; 
+        }
         
         .btn:active { transform: scale(0.98); }
         .btn:hover { background: #142842; }
 
-        /* Colores diferentes para distinguir los sistemas */
-        .btn-secondary { background: #2e7d32; } /* Verde para Anexo y Cava */
+        .btn-secondary { background: #2e7d32; }
         .btn-secondary:hover { background: #1b5e20; }
 
-        .btn-picking { background: #ef6c00; } /* Naranja para Picking */
+        .btn-picking { background: #ef6c00; }
         .btn-picking:hover { background: #e65100; }
 
-        .btn-unidades { background: #111827; } /* negro tipo Tailwind */
-        .btn-unidades:hover { background: #000000; } /* Negro más claro al pasar el mouse */
+        .btn-unidades { background: #111827; }
+        .btn-unidades:hover { background: #000000; }
     </style>
 </head>
+
 <body>
+
     <img src="logom2.jpg" alt="M2 Consultoría Digital" class="logom2">
     
     <h1>Inventario AZA - Peñaflor</h1>
@@ -50,7 +69,9 @@
         <a href="qrcavayanexo/index.html" class="btn btn-secondary">Anexo y Cava - Sistema de Voz</a>
 
         <a href="qrpicking/index.html" class="btn btn-picking">Picking - Sistema de Voz</a>
+
         <a href="qrunidades/index.html" class="btn btn-unidades">Unidades - Sistema de Voz</a>
     </div>
+
 </body>
 </html>
