@@ -78,6 +78,8 @@ let STOCK_LEGACY = [];
 let DATA_SESION = [];
 let html5QrCode = null;
 let tempItem = null;
+let lastScanTime = 0;
+const SCAN_INTERVAL = 3000; // 3 segundos
 const synth = window.speechSynthesis;
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = SpeechRecognition ? new SpeechRecognition() : null;
@@ -113,7 +115,6 @@ function importarExcel() {
             rowsD.forEach(r => {
                 const cleanedRow = {};
                 Object.keys(r).forEach(key => cleanedRow[key.trim().toUpperCase()] = r[key]);
-
                 let cdb = String(cleanedRow["CDB"] || "").trim();
                 if(cdb) cdb = String(parseInt(cdb)); // normalizamos
                 if(cdb) {
@@ -140,6 +141,7 @@ function importarExcel() {
     reader.readAsArrayBuffer(file);
 }
 
+// Escaneo continuo con intervalo de 3 segundos
 async function toggleScanner() {
     const cont = document.getElementById('scanner-container');
     if(!html5QrCode) {
@@ -149,6 +151,10 @@ async function toggleScanner() {
             { facingMode: "environment" },
             { fps: 10, qrbox: 250 },
             (text) => {
+                const now = Date.now();
+                if(now - lastScanTime < SCAN_INTERVAL) return;
+                lastScanTime = now;
+
                 beep();
                 const normalizedCDB = String(parseInt(text.trim()));
                 procesarDato(normalizedCDB);
@@ -172,6 +178,7 @@ function beep() {
 function buscarManual() {
     const val = document.getElementById('cdb-manual').value.trim();
     if(!val) return;
+    beep();
     const normalizedCDB = String(parseInt(val));
     procesarDato(normalizedCDB);
 }
@@ -216,7 +223,7 @@ function registrarFinal() {
         "Lote/ serie": loteRow ? loteRow['Lote'] : "SIN LOTE",
         Cantidad_UN: cant,
         UN: "UN",
-        Cantidad_CA: (cant / tempItem.uxc).toFixed(2),
+        Cantidad_CA: (cant / tempItem.uxc).toFixed(2).replace(".", ","), // coma decimal
         CA: "CA"
     });
 
