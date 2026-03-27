@@ -3,21 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <title>Panel inventario DEMO AZA - M2</title>
-
-    <!-- Icono básico -->
-    <link rel="icon" type="image/png" href="favicon-32x32.png">
-
-    <!-- PWA -->
-    <link rel="manifest" href="manifest.json">
-
-    <!-- Icono para iPhone -->
-    <link rel="apple-touch-icon" href="apple-icon-180x180.png">
-
-    <!-- Color de la app -->
-    <meta name="theme-color" content="#1e3a5f">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Contador de Comprobantes DEMO</title>
+    <!-- Tailwind CSS para el diseño -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js para leer los PDFs localmente -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <style>
+        .drag-active { background-color: #f0fdf4; border-color: #22c55e; }
+        .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
 </head>
 <body class="bg-slate-50 min-h-screen font-sans text-slate-800">
 
@@ -25,9 +23,9 @@
         <!-- Encabezado con Título y Logo -->
         <div class="flex flex-col md:flex-row justify-between items-start mb-8 gap-4 border-b border-slate-200 pb-6">
             <div class="text-left">
-                <h1 class="text-3xl font-extrabold text-blue-900 mb-1">Contador de Comprobantes DEMO</h1>
+                <h1 class="text-3xl font-extrabold text-blue-900 mb-1">Contador de Comprobantes Peñaflor</h1>
                 <p class="text-slate-500 font-medium">by M2 Consultoria Digital</p>
-                <p class="text-sm text-slate-400 mt-2 italic">Procesamiento local de Facturas y Remitos agrupados por Carga</p>
+                <p class="text-sm text-slate-400 mt-2 italic">Procesamiento local de Facturas y Remitos agrupados por Carta de Porte</p>
             </div>
             
             <div class="bg-white p-2 rounded-lg shadow-sm border border-slate-100 flex items-center justify-center">
