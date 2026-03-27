@@ -1,7 +1,7 @@
 {
-  "name": "Inventario AZA Peñaflor",
-  "short_name": "Inventario AZA",
-  "start_url": "/Penaflor/index.html",
+  "name": "Contador de FC",
+  "short_name": "Contador FC",
+  "start_url": "/demook/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1e3a5f",
@@ -12,7 +12,7 @@
       "type": "image/png"
     },
     {
-      "src": "/Penaflor/icon-512x512.png",
+      "src": "/demook/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
