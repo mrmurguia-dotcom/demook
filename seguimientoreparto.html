@@ -72,7 +72,6 @@
                     const pg = await pdf.getPage(i);
                     const txt = (await pg.getTextContent()).items.map(it => it.str).join(' ');
 
-                    // 1 & 2. Identificar si es Remito o Factura y limpiar número
                     const esRemito = txt.includes("Remito R");
                     const labelTipo = esRemito ? "REMITO" : "FACTURA";
                     
@@ -81,10 +80,13 @@
 
                     if (nro) {
                         const cp = txt.match(/Carta\s+Porte.*?:\s*(\d+)/)?.[1] || "S/CP";
-                        const cliMatch = txt.match(/Cliente:\s*(\d+\s+.*?)(?=\s+VN\s+|\s+Direcci)/i);
+                        const cliMatch = txt.match(/Cliente:\s*(\d+\s+.*?)(?=\s+SN\s+|\s+SR\s+|\s+VN\s+|\s+Direcci)/i);
                         const cli = cliMatch ? cliMatch[1].trim() : (txt.match(/Cliente:\s*(\d+\s+[A-Za-z\s.,]+)/)?.[1]?.trim() || "Cliente");
                         const dir = txt.match(/Dirección\s+(.*?)(?=\s+Categoría|\s+LU\s+A\s+VI)/)?.[1] || "S/D";
+                        
+                        // EXTRACCIÓN DE CAJAS Y UNIDADES
                         const cajas = parseFloat(txt.match(/Total\s+Cajas\s*:\s*([\d.,]+)/)?.[1]?.replace('.','').replace(',','.')) || 0;
+                        const unidades = parseFloat(txt.match(/Total\s+Unidades\s*:\s*([\d.,]+)/)?.[1]?.replace('.','').replace(',','.')) || 0;
                         const total = parseFloat(txt.match(/Total:\s*([\d.,]+)/)?.[1]?.replace('.','').replace(',','.')) || 0;
 
                         if (!store[cp]) store[cp] = { docs: [] };
@@ -96,11 +98,13 @@
                                 tipo: labelTipo, 
                                 cliente: cli, 
                                 direccion: dir, 
-                                cajas: cajas, 
+                                cajas: cajas,
+                                unidades: unidades,
                                 importe: total 
                             });
                         } else if (cajas > store[cp].docs[index].cajas) {
                             store[cp].docs[index].cajas = cajas;
+                            store[cp].docs[index].unidades = unidades;
                             store[cp].docs[index].importe = total;
                         }
                     }
@@ -114,12 +118,13 @@
             container.innerHTML = '';
             for (let cp in store) {
                 let filas = store[cp].docs.map(d => `
-                    <tr class="border-b text-sm">
+                    <tr class="border-b text-sm hover:bg-white transition-colors">
                         <td class="p-3 font-bold text-slate-700">${d.numero}</td>
                         <td class="p-3 text-[10px]"><span class="${d.tipo === 'REMITO' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'} px-2 py-0.5 rounded font-bold">${d.tipo}</span></td>
                         <td class="p-3 text-slate-500">${d.cliente}</td>
                         <td class="p-3 text-right font-black text-blue-600">${d.cajas} CJ</td>
-                        <td class="p-3 text-right font-medium">$${d.importe.toLocaleString('es-AR')}</td>
+                        <td class="p-3 text-right font-bold text-slate-600">${d.unidades} UN</td>
+                        <td class="p-3 text-right font-medium text-slate-800">$${d.importe.toLocaleString('es-AR')}</td>
                     </tr>
                 `).join('');
 
@@ -138,6 +143,7 @@
                                 <th class="p-3">Tipo</th>
                                 <th class="p-3">Cliente</th>
                                 <th class="p-3 text-right">Cajas</th>
+                                <th class="p-3 text-right">Unidades</th>
                                 <th class="p-3 text-right">Importe</th>
                             </thead>
                             <tbody>${filas}</tbody>
@@ -159,7 +165,6 @@
             const fechaInput = document.getElementById('fechaReparto').value;
             if(!fechaInput) return alert("Por favor selecciona una fecha de reparto");
 
-            // 4. Formatear fecha a dd/mm/aaaa
             const [y, m, d] = fechaInput.split('-');
             const fechaFormateada = `${d}/${m}/${y}`;
 
@@ -174,7 +179,7 @@
                     mode: 'no-cors',
                     body: JSON.stringify({ datos: store, fechaManual: fechaFormateada })
                 });
-                alert("✓ Sincronizado con éxito. La columna se llama ahora FACTURA/REMITO y la fecha tiene formato dd/mm/aaaa.");
+                alert("✓ Sincronizado con éxito.");
                 store = {}; 
                 dibujar();  
             } catch (e) {
