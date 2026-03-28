@@ -40,10 +40,8 @@
 
         let store = {};
 
-        // Para que la fecha por defecto sea la de hoy
         document.getElementById('fechaReparto').valueAsDate = new Date();
 
-        // LÓGICA DE ARRASTRAR Y SOLTAR CORREGIDA
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
 
@@ -74,17 +72,17 @@
                     const pg = await pdf.getPage(i);
                     const txt = (await pg.getTextContent()).items.map(it => it.str).join(' ');
 
-                    // CORRECCIÓN NRO FACTURA: Busca específicamente 4-5 dígitos, guion, y 8 dígitos.
+                    // 1 & 2. Identificar si es Remito o Factura y limpiar número
+                    const esRemito = txt.includes("Remito R");
+                    const labelTipo = esRemito ? "REMITO" : "FACTURA";
+                    
                     const nroMatch = txt.match(/Nro\.:\s*(\d{4,5}\s*-\s*\d{8})/);
-                    const nro = nroMatch ? nroMatch[1] : null;
+                    let nro = nroMatch ? nroMatch[1] : null;
 
                     if (nro) {
                         const cp = txt.match(/Carta\s+Porte.*?:\s*(\d+)/)?.[1] || "S/CP";
-                        
-                        // CORRECCIÓN CLIENTE: Toma los números y el nombre, frena antes del "VN" o "Dirección"
                         const cliMatch = txt.match(/Cliente:\s*(\d+\s+.*?)(?=\s+VN\s+|\s+Direcci)/i);
                         const cli = cliMatch ? cliMatch[1].trim() : (txt.match(/Cliente:\s*(\d+\s+[A-Za-z\s.,]+)/)?.[1]?.trim() || "Cliente");
-                        
                         const dir = txt.match(/Dirección\s+(.*?)(?=\s+Categoría|\s+LU\s+A\s+VI)/)?.[1] || "S/D";
                         const cajas = parseFloat(txt.match(/Total\s+Cajas\s*:\s*([\d.,]+)/)?.[1]?.replace('.','').replace(',','.')) || 0;
                         const total = parseFloat(txt.match(/Total:\s*([\d.,]+)/)?.[1]?.replace('.','').replace(',','.')) || 0;
@@ -93,7 +91,14 @@
                         
                         let index = store[cp].docs.findIndex(d => d.numero === nro);
                         if (index === -1) {
-                            store[cp].docs.push({ numero: nro, cliente: cli, direccion: dir, cajas: cajas, importe: total });
+                            store[cp].docs.push({ 
+                                numero: nro, 
+                                tipo: labelTipo, 
+                                cliente: cli, 
+                                direccion: dir, 
+                                cajas: cajas, 
+                                importe: total 
+                            });
                         } else if (cajas > store[cp].docs[index].cajas) {
                             store[cp].docs[index].cajas = cajas;
                             store[cp].docs[index].importe = total;
@@ -111,6 +116,7 @@
                 let filas = store[cp].docs.map(d => `
                     <tr class="border-b text-sm">
                         <td class="p-3 font-bold text-slate-700">${d.numero}</td>
+                        <td class="p-3 text-[10px]"><span class="${d.tipo === 'REMITO' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'} px-2 py-0.5 rounded font-bold">${d.tipo}</span></td>
                         <td class="p-3 text-slate-500">${d.cliente}</td>
                         <td class="p-3 text-right font-black text-blue-600">${d.cajas} CJ</td>
                         <td class="p-3 text-right font-medium">$${d.importe.toLocaleString('es-AR')}</td>
@@ -122,12 +128,18 @@
                         <div class="bg-blue-50 px-4 py-3 border-b font-black text-blue-900 flex justify-between items-center">
                             <span>CP: ${cp}</span>
                             <div class="flex gap-2">
-                                <span class="text-xs bg-white px-2 py-1 rounded-full border border-blue-200">${store[cp].docs.length} FC</span>
+                                <span class="text-xs bg-white px-2 py-1 rounded-full border border-blue-200">${store[cp].docs.length} ÍTEMS</span>
                                 <button onclick="quitarCP('${cp}')" class="bg-red-100 text-red-600 hover:bg-red-600 hover:text-white px-3 py-1 rounded-lg text-xs transition-colors">✕ QUITAR</button>
                             </div>
                         </div>
                         <table class="w-full text-left">
-                            <thead class="text-[10px] text-slate-400 uppercase font-bold bg-white"><th class="p-3">Factura</th><th class="p-3">Cliente</th><th class="p-3 text-right">Cajas</th><th class="p-3 text-right">Importe</th></thead>
+                            <thead class="text-[10px] text-slate-400 uppercase font-bold bg-white">
+                                <th class="p-3">Factura/Remito</th>
+                                <th class="p-3">Tipo</th>
+                                <th class="p-3">Cliente</th>
+                                <th class="p-3 text-right">Cajas</th>
+                                <th class="p-3 text-right">Importe</th>
+                            </thead>
                             <tbody>${filas}</tbody>
                         </table>
                     </div>
@@ -144,8 +156,12 @@
         }
 
         async function enviarALaNube() {
-            const fechaManual = document.getElementById('fechaReparto').value;
-            if(!fechaManual) return alert("Por favor selecciona una fecha de reparto");
+            const fechaInput = document.getElementById('fechaReparto').value;
+            if(!fechaInput) return alert("Por favor selecciona una fecha de reparto");
+
+            // 4. Formatear fecha a dd/mm/aaaa
+            const [y, m, d] = fechaInput.split('-');
+            const fechaFormateada = `${d}/${m}/${y}`;
 
             if(Object.keys(store).length === 0) return alert("No hay datos para enviar");
 
@@ -156,9 +172,9 @@
                 await fetch(WEB_APP_URL, {
                     method: 'POST',
                     mode: 'no-cors',
-                    body: JSON.stringify({ datos: store, fechaManual: fechaManual })
+                    body: JSON.stringify({ datos: store, fechaManual: fechaFormateada })
                 });
-                alert("✓ Sincronizado con éxito. Revisa el Excel.");
+                alert("✓ Sincronizado con éxito. La columna se llama ahora FACTURA/REMITO y la fecha tiene formato dd/mm/aaaa.");
                 store = {}; 
                 dibujar();  
             } catch (e) {
