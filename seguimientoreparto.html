@@ -82,7 +82,12 @@
                         const cp = txt.match(/Carta\s+Porte.*?:\s*(\d+)/)?.[1] || "S/CP";
                         const cliMatch = txt.match(/Cliente:\s*(\d+\s+.*?)(?=\s+SN\s+|\s+SR\s+|\s+VN\s+|\s+Direcci)/i);
                         const cli = cliMatch ? cliMatch[1].trim() : (txt.match(/Cliente:\s*(\d+\s+[A-Za-z\s.,]+)/)?.[1]?.trim() || "Cliente");
-                        const dir = txt.match(/Dirección\s+(.*?)(?=\s+Categoría|\s+LU\s+A\s+VI)/)?.[1] || "S/D";
+                        
+                        // --- CORRECCIÓN DE DIRECCIÓN IMPLEMENTADA ---
+                        // Frena antes de "Categoría", "LU A VI", "VN", "SR 1234", "SN 1234" o "1A 1234"
+                        const dirMatch = txt.match(/Dirección\s+(.*?)(?=\s+Categoría|\s+LU\s+A\s+VI|\s+VN\s+|\s+SR\s+\d{4}|\s+SN\s+\d{4}|\s+\d[A-Z]\s+\d{4})/i);
+                        const dir = dirMatch ? dirMatch[1].trim() : (txt.match(/Dirección\s+(.*?)(?=\s+Categoría)/)?.[1]?.trim() || "S/D");
+                        // --------------------------------------------
                         
                         // EXTRACCIÓN MEJORADA: Busca "Total Unidades" (Factura) o "Botellas" (Remito)
                         const cajas = parseFloat(txt.match(/Total\s+Cajas\s*:\s*([\d.,]+)/)?.[1]?.replace('.','').replace(',','.')) || 0;
