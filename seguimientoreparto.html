@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestión Logística - Peñaflor</title>
+    
+    <link rel="icon" type="image/png" href="favicon-32x32.png">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="apple-icon-180x180.png">
+    <meta name="theme-color" content="#1e3a5f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <style>
+        .drag-active { background-color: #f0fdf4; border-color: #22c55e; }
+        .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
+
+    <div class="max-w-5xl mx-auto p-6 pt-10">
+        <div class="flex flex-col md:flex-row justify-between items-start mb-8 gap-4 border-b border-slate-200 pb-6">
+            <div class="text-left">
+                <h1 class="text-3xl font-extrabold text-blue-900 mb-1">Peñaflor - Panel de Supervisor</h1>
+                <p class="text-slate-500 font-medium italic">Procesamiento automático y sincronización en la nube</p>
+            </div>
+            <div class="bg-white p-2 rounded-lg shadow-sm border border-slate-100 flex items-center">
+                <img src="logom2.jpg" alt="M2 Consultoria" class="h-12 w-auto">
+            </div>
+        </div>
+
+        <div id="dropZone" class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 hover:border-blue-400 hover:bg-blue-50/30 shadow-sm mb-6 group">
+            <div class="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            </div>
+            <p class="text-xl font-semibold text-slate-700">Subir Facturas PDF</p>
+            <p class="text-sm text-slate-400 mt-2 uppercase font-bold tracking-tighter">Click para seleccionar archivos</p>
+            <input type="file" id="fileInput" accept="application/pdf" multiple class="hidden" />
+        </div>
+
+        <div id="messageBox" class="hidden mb-6 p-4 rounded-xl text-sm font-bold text-center"></div>
+
+        <div id="loadingIndicator" class="hidden flex flex-col items-center justify-center py-12">
+            <div class="spinner mb-4"></div>
+            <p class="text-blue-700 font-bold">LEYENDO FACTURAS...</p>
+        </div>
+
+        <div id="resultsContainer" class="hidden space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center p-6 bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-2xl shadow-lg">
+                <div>
+                    <h2 class="text-xl font-bold">Ruta Consolidada</h2>
+                    <p id="totalDocsText" class="text-blue-200 text-xs mt-1 uppercase"></p>
+                </div>
+                <button onclick="enviarALaNube()" id="btnNube" class="mt-4 sm:mt-0 bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-xl font-black transition-all transform hover:scale-105 flex items-center gap-2 shadow-xl">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                    SINCRONIZAR CON SHEETS
+                </button>
+            </div>
+            
+            <div id="groupedTablesContainer" class="grid grid-cols-1 gap-6 pb-20"></div>
+        </div>
+    </div>
+
+    <script>
+        // URL DE TU SCRIPT DE GOOGLE
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwWEJJXqh66m7suYnX9eKMvRKnQwxoTprb01WtQeP4Ts6Irs_PPzJ_lCbeF1KNjiQIx/exec";
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const groupedTablesContainer = document.getElementById('groupedTablesContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const messageBox = document.getElementById('messageBox');
+
+        let groupedDataStore = {};
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-active'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-active');
+            if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', () => { if (fileInput.files.length > 0) handleFiles(fileInput.files); });
+
+        function parseArgentineNumber(str) {
+            if (!str) return 0;
+            let cleanStr = str.replace(/\./g, '').replace(',', '.').trim();
+            let num = parseFloat(cleanStr);
+            return isNaN(num) ? 0 : num;
+        }
+
+        async function handleFiles(files) {
+            messageBox.classList.add('hidden');
+            resultsContainer.classList.add('hidden');
+            loadingIndicator.classList.remove('hidden');
+            groupedTablesContainer.innerHTML = '';
+            groupedDataStore = {};
+            
+            let allDocsMap = {}; 
+
+            try {
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (file.type !== 'application/pdf') continue;
+
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    
+                    for (let p = 1; p <= pdf.numPages; p++) {
+                        const page = await pdf.getPage(p);
+                        const textContent = await page.getTextContent();
+                        let pageText = textContent.items.map(item => item.str).join(' ');
+
+                        const nroMatch = pageText.match(/Nro\.:\s*(\d{5}\s*-\s*\d{8})/i);
+                        
+                        if (nroMatch) {
+                            const numero = nroMatch[1];
+
+                            if (!allDocsMap[numero]) {
+                                allDocsMap[numero] = {
+                                    numero: numero,
+                                    clienteNombre: "Consumidor Final",
+                                    direccion: "No especificada",
+                                    cajas: 0,
+                                    importe: 0,
+                                    tipo: pageText.includes("Factura") ? "Factura" : "Remito",
+                                    cartaPorte: "Sin CP"
+                                };
+                            }
+
+                            const clienteMatch = pageText.match(/Cliente:\s*(\d{8})\s+(.*?)(?=\s+Dirección|VN)/i);
+                            if (clienteMatch) allDocsMap[numero].clienteNombre = clienteMatch[2].trim();
+
+                            const dirMatch = pageText.match(/Dirección\s+(.*?)(?=\s+Categoría)/i);
+                            if (dirMatch) allDocsMap[numero].direccion = dirMatch[1].trim();
+
+                            const cpMatch = pageText.match(/Carta\s+Porte.*?:\s*(\d+)/i);
+                            if (cpMatch) allDocsMap[numero].cartaPorte = cpMatch[1];
+
+                            const cajasMatch = pageText.match(/Total\s+Cajas\s*:\s*([\d.,]+)/i);
+                            if (cajasMatch) {
+                                let boxes = parseArgentineNumber(cajasMatch[1]);
+                                if (boxes > 0) allDocsMap[numero].cajas = boxes;
+                            }
+
+                            const importeMatch = pageText.match(/Total:\s*([\d.,]+)/i);
+                            if (importeMatch) {
+                                let importVal = parseArgentineNumber(importeMatch[1]);
+                                if (importVal > 0) allDocsMap[numero].importe = importVal;
+                            }
+                        }
+                    }
+                }
+
+                Object.values(allDocsMap).forEach(doc => {
+                    const cp = doc.cartaPorte;
+                    if (!groupedDataStore[cp]) {
+                        groupedDataStore[cp] = { docs: [], totalCajas: 0, totalImporte: 0 };
+                    }
+                    groupedDataStore[cp].docs.push(doc);
+                    groupedDataStore[cp].totalCajas += doc.cajas;
+                    groupedDataStore[cp].totalImporte += doc.importe;
+                });
+
+                renderGroupedResults();
+                resultsContainer.classList.remove('hidden');
+
+            } catch (error) {
+                console.error(error);
+                alert("Error al procesar PDFs");
+            } finally {
+                loadingIndicator.classList.add('hidden');
+                fileInput.value = '';
+            }
+        }
+
+        function renderGroupedResults() {
+            Object.keys(groupedDataStore).forEach(cp => {
+                const group = groupedDataStore[cp];
+                const card = document.createElement('div');
+                card.className = 'bg-white shadow-md rounded-2xl overflow-hidden border border-slate-200';
+                
+                // HTML de las filas sin la columna de Dirección
+                let rows = group.docs.map(doc => `
+                    <tr class="border-b text-xs hover:bg-slate-50">
+                        <td class="p-4 font-bold text-slate-700">${doc.numero}</td>
+                        <td class="p-4">${doc.clienteNombre}</td>
+                        <td class="p-4 text-right font-black text-blue-700">${doc.cajas}</td>
+                        <td class="p-4 text-right font-medium">$${doc.importe.toLocaleString('es-AR')}</td>
+                    </tr>
+                `).join('');
+
+                card.innerHTML = `
+                    <div class="bg-blue-50 p-4 border-b border-blue-100 flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <span class="bg-blue-900 text-white font-bold text-xs px-2 py-1 rounded">CP</span>
+                            <h3 class="font-black text-blue-900 text-lg">${cp}</h3>
+                        </div>
+                        <span class="text-xs font-bold bg-blue-200 text-blue-800 px-3 py-1 rounded-full">${group.docs.length} FC</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full whitespace-nowrap">
+                            <thead class="bg-slate-50 text-[10px] uppercase text-slate-400 font-bold tracking-wider">
+                                <tr>
+                                    <th class="p-4 text-left">Número</th>
+                                    <th class="p-4 text-left">Cliente</th>
+                                    <th class="p-4 text-right">Cajas</th>
+                                    <th class="p-4 text-right">Importe</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                            <tfoot class="bg-slate-100 font-black text-slate-800 border-t border-slate-200">
+                                <tr>
+                                    <td colspan="2" class="p-4 text-right uppercase tracking-wider text-xs">TOTAL RUTA:</td>
+                                    <td class="p-4 text-right text-blue-700 text-base">${group.totalCajas}</td>
+                                    <td class="p-4 text-right text-base">$${group.totalImporte.toLocaleString('es-AR')}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                `;
+                groupedTablesContainer.appendChild(card);
+            });
+        }
+
+        async function enviarALaNube() {
+            const btn = document.getElementById('btnNube');
+            btn.disabled = true;
+            btn.textContent = "CONECTANDO...";
+            
+            try {
+                await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ datos: groupedDataStore })
+                });
+                alert("✓ Datos enviados a la nube exitosamente.");
+            } catch (e) {
+                alert("Error de conexión");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "SINCRONIZAR CON SHEETS";
+            }
+        }
+    </script>
+</body>
+</html>
