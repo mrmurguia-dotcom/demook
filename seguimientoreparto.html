@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión Reparto Peñaflor - M2</title>
+    <title>Gestión Reparto DEMO - M2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
@@ -36,7 +36,6 @@
     </div>
 
     <script>
-        // ¡IMPORTANTE! PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw2SEryIADPqNpU03a7LW77hMTT5yS4ltkPWOTTNye0KG-rsTbZ3kSgeUPvIFN1G2Jg/exec"; 
 
         let store = {};
@@ -44,8 +43,29 @@
         // Para que la fecha por defecto sea la de hoy
         document.getElementById('fechaReparto').valueAsDate = new Date();
 
-        document.getElementById('dropZone').onclick = () => document.getElementById('fileInput').click();
-        document.getElementById('fileInput').onchange = (e) => procesar(e.target.files);
+        // LÓGICA DE ARRASTRAR Y SOLTAR CORREGIDA
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.onclick = () => fileInput.click();
+        fileInput.onchange = (e) => procesar(e.target.files);
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('bg-blue-100', 'border-blue-400');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('bg-blue-100', 'border-blue-400');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('bg-blue-100', 'border-blue-400');
+            if (e.dataTransfer.files.length > 0) {
+                procesar(e.dataTransfer.files);
+            }
+        });
 
         async function procesar(files) {
             for (let file of files) {
@@ -54,11 +74,18 @@
                     const pg = await pdf.getPage(i);
                     const txt = (await pg.getTextContent()).items.map(it => it.str).join(' ');
 
-                    const nro = txt.match(/Nro\.:\s*(\d+-\d+)/)?.[1];
+                    // CORRECCIÓN NRO FACTURA: Busca específicamente 4-5 dígitos, guion, y 8 dígitos.
+                    const nroMatch = txt.match(/Nro\.:\s*(\d{4,5}\s*-\s*\d{8})/);
+                    const nro = nroMatch ? nroMatch[1] : null;
+
                     if (nro) {
                         const cp = txt.match(/Carta\s+Porte.*?:\s*(\d+)/)?.[1] || "S/CP";
-                        const cli = txt.match(/Cliente:\s*\d+\s+(.*?)(?=\s+Dirección)/)?.[1] || "Cliente";
-                        const dir = txt.match(/Dirección\s+(.*?)(?=\s+Categoría)/)?.[1] || "S/D";
+                        
+                        // CORRECCIÓN CLIENTE: Toma los números y el nombre, frena antes del "VN" o "Dirección"
+                        const cliMatch = txt.match(/Cliente:\s*(\d+\s+.*?)(?=\s+VN\s+|\s+Direcci)/i);
+                        const cli = cliMatch ? cliMatch[1].trim() : (txt.match(/Cliente:\s*(\d+\s+[A-Za-z\s.,]+)/)?.[1]?.trim() || "Cliente");
+                        
+                        const dir = txt.match(/Dirección\s+(.*?)(?=\s+Categoría|\s+LU\s+A\s+VI)/)?.[1] || "S/D";
                         const cajas = parseFloat(txt.match(/Total\s+Cajas\s*:\s*([\d.,]+)/)?.[1]?.replace('.','').replace(',','.')) || 0;
                         const total = parseFloat(txt.match(/Total:\s*([\d.,]+)/)?.[1]?.replace('.','').replace(',','.')) || 0;
 
@@ -132,8 +159,8 @@
                     body: JSON.stringify({ datos: store, fechaManual: fechaManual })
                 });
                 alert("✓ Sincronizado con éxito. Revisa el Excel.");
-                store = {}; // Limpiamos la memoria después de enviar
-                dibujar();  // Limpiamos la pantalla
+                store = {}; 
+                dibujar();  
             } catch (e) {
                 alert("Error al conectar");
             }
