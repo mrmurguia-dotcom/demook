@@ -14,7 +14,8 @@
     </script>
     
     <style>
-        .drag-active { background-color: #f0fdf4; border-color: #22c55e; }
+        .drag-active-blue { background-color: #eff6ff; border-color: #3b82f6; }
+        .drag-active-orange { background-color: #fff7ed; border-color: #f97316; }
         .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
@@ -22,7 +23,6 @@
 <body class="bg-slate-50 min-h-screen font-sans text-slate-800">
 
     <div class="max-w-7xl mx-auto p-6 pt-10">
-        <!-- Encabezado -->
         <div class="flex flex-col md:flex-row justify-between items-start mb-8 gap-4 border-b border-slate-200 pb-6">
             <div class="text-left">
                 <h1 class="text-3xl font-extrabold text-blue-900 mb-1">Auditoría de Diferencias JDE vs Remitos</h1>
@@ -30,35 +30,33 @@
             </div>
         </div>
 
-        <!-- Seccion de Carga de Archivos -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <!-- Bloque 1: Facturación (PDFs) -->
             <div id="dropZonePdf" class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 hover:border-blue-400 hover:bg-blue-50/30 shadow-sm group">
                 <div class="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition-transform">
                     <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 </div>
                 <p class="text-lg font-semibold text-slate-700">1. Comprobantes (PDF)</p>
                 <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider font-bold">Arrastrá Remitos/Facturas o hacé clic</p>
-                <div id="pdfCountBadge" class="hidden mt-2 inline-block bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-bold"></div>
+                <div id="pdfCountBadge" class="hidden mt-3 inline-block bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-bold"></div>
                 <input type="file" id="pdfFileInput" accept="application/pdf" multiple class="hidden" />
             </div>
 
-            <!-- Bloque 2: Reporte JDE Surtido -->
-            <div id="dropZoneJde" class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-6 shadow-sm">
-                <div class="flex flex-col items-center text-center h-full justify-between">
-                    <div class="w-full">
-                        <div class="bg-orange-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2">
-                            <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
-                        </div>
-                        <p class="text-lg font-semibold text-slate-700">2. Reporte JDE Surtido</p>
-                    </div>
-                    
-                    <div class="w-full my-3 text-left">
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 text-center">Archivo (.html/.htm):</label>
-                        <input type="file" id="jdeFileInput" accept=".xls,.xlsx,.htm,.html" class="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 cursor-pointer" />
-                    </div>
-                    <div id="jdeLoadedBadge" class="hidden bg-orange-100 text-orange-800 text-xs px-2.5 py-1 rounded-full font-bold">Reporte JDE Cargado</div>
+            <div id="dropZoneJde" class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 hover:border-orange-400 hover:bg-orange-50/30 shadow-sm group">
+                <div class="bg-orange-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition-transform">
+                    <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
                 </div>
+                <p class="text-lg font-semibold text-slate-700">2. Reporte JDE Surtido</p>
+                <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider font-bold">Arrastrá el archivo (.xls/.html) o hacé clic</p>
+                
+                <div class="mt-3 flex flex-col items-center justify-center" onclick="event.stopPropagation()">
+                    <select id="tipoReporte" class="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400 cursor-pointer transition-all hover:bg-slate-50">
+                        <option value="estandar">Surtido Estándar</option>
+                        <option value="multiorden">Surtido Multiorden</option>
+                    </select>
+                </div>
+
+                <div id="jdeLoadedBadge" class="hidden mt-3 inline-block bg-orange-100 text-orange-800 text-xs px-3 py-1 rounded-full font-bold"></div>
+                <input type="file" id="jdeFileInput" accept=".xls,.xlsx,.htm,.html" class="hidden" />
             </div>
         </div>
 
@@ -68,10 +66,8 @@
             <p class="text-blue-700 text-xs font-bold uppercase tracking-widest">Procesando líneas y cruzando datos...</p>
         </div>
 
-        <!-- ================= KPIs GLOBALES ================= -->
         <div id="cruceContainer" class="hidden mb-8">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <!-- Tarjeta Cajas -->
                 <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                     <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Control Maestro de Cajas (CA)</h3>
                     <div class="grid grid-cols-3 text-center gap-2">
@@ -90,7 +86,6 @@
                     </div>
                 </div>
 
-                <!-- Tarjeta Unidades / Botellas -->
                 <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                     <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Control Maestro de Unidades (UN)</h3>
                     <div class="grid grid-cols-3 text-center gap-2">
@@ -110,7 +105,6 @@
                 </div>
             </div>
 
-            <!-- ================= TABLA DE DIFERENCIAS (EXCEPCIONES) ================= -->
             <div class="bg-white shadow-md rounded-2xl border border-slate-200 overflow-hidden">
                 <div class="bg-rose-600 p-4 text-white flex justify-between items-center">
                     <div>
@@ -147,9 +141,13 @@
     </div>
 
     <script>
+        // Selectores
         const dropZonePdf = document.getElementById('dropZonePdf');
         const pdfFileInput = document.getElementById('pdfFileInput');
+        
+        const dropZoneJde = document.getElementById('dropZoneJde');
         const jdeFileInput = document.getElementById('jdeFileInput');
+        const tipoReporteSelect = document.getElementById('tipoReporte');
         
         const messageBox = document.getElementById('messageBox');
         const loadingIndicator = document.getElementById('loadingIndicator');
@@ -157,20 +155,33 @@
         
         // Estructuras de datos
         let globalPdfData = { items: {}, totalCajas: 0, totalUnidades: 0 };
-        let globalJdeData = { list: [], carga: "S/C" };
+        let globalJdeData = { list: [], carga: "S/C", tipo: "estandar" };
         let skuReconciliation = {}; 
 
-        // Drag & Drop
+        // Drag & Drop PDFs
         dropZonePdf.addEventListener('click', () => pdfFileInput.click());
-        dropZonePdf.addEventListener('dragover', (e) => { e.preventDefault(); dropZonePdf.classList.add('drag-active'); });
-        dropZonePdf.addEventListener('dragleave', () => { dropZonePdf.classList.remove('drag-active'); });
+        dropZonePdf.addEventListener('dragover', (e) => { e.preventDefault(); dropZonePdf.classList.add('drag-active-blue'); });
+        dropZonePdf.addEventListener('dragleave', () => { dropZonePdf.classList.remove('drag-active-blue'); });
         dropZonePdf.addEventListener('drop', (e) => {
             e.preventDefault();
-            dropZonePdf.classList.remove('drag-active');
+            dropZonePdf.classList.remove('drag-active-blue');
             if (e.dataTransfer.files.length > 0) procesarPdfs(e.dataTransfer.files);
         });
         pdfFileInput.addEventListener('change', () => {
             if (pdfFileInput.files.length > 0) procesarPdfs(pdfFileInput.files);
+        });
+
+        // Drag & Drop JDE
+        dropZoneJde.addEventListener('click', () => jdeFileInput.click());
+        dropZoneJde.addEventListener('dragover', (e) => { e.preventDefault(); dropZoneJde.classList.add('drag-active-orange'); });
+        dropZoneJde.addEventListener('dragleave', () => { dropZoneJde.classList.remove('drag-active-orange'); });
+        dropZoneJde.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZoneJde.classList.remove('drag-active-orange');
+            if (e.dataTransfer.files.length > 0) {
+                jdeFileInput.files = e.dataTransfer.files;
+                procesarJde(e.dataTransfer.files[0]);
+            }
         });
         jdeFileInput.addEventListener('change', () => {
             if (jdeFileInput.files.length > 0) procesarJde(jdeFileInput.files[0]);
@@ -190,7 +201,7 @@
         }
         function hideMessage() { messageBox.classList.add('hidden'); }
 
-        // ================= PARSEO DE PDFs (Lectura Exclusiva de Líneas del Cuerpo) =================
+        // ================= PARSEO DE PDFs =================
         async function procesarPdfs(files) {
             hideMessage();
             loadingIndicator.classList.remove('hidden');
@@ -210,18 +221,16 @@
                         const page = await pdf.getPage(pageNum);
                         const textContent = await page.getTextContent();
                         
-                        // Unimos todo el texto con espacios para asegurar el flujo de la tabla
                         let pageText = textContent.items.map(item => item.str).join(' ');
 
-                        // Expresión Regular para identificar líneas del cuerpo del remito:
-                        // Busca: [Articulo 4-6 digitos] [Espacio] [Opcional: Lote alfanumérico] [UM: CA/UN/BT] [Cantidad]
+                        // Expresión Regular para cuerpo del remito (Extrae Artículo, UM y Cantidad)
                         const itemRegex = /\b(\d{4,6})\b\s+(?:([A-Za-z0-9_.\-]+)\s+)?(CA|UN|BT)\s+([\d]+(?:[.,]\d+)?)/gi;
                         let match;
                         
                         while ((match = itemRegex.exec(pageText)) !== null) {
                             let articulo = match[1];
                             let umRaw = match[3].toUpperCase();
-                            let um = umRaw === 'BT' ? 'UN' : umRaw; // Unificamos Botellas a Unidades
+                            let um = umRaw === 'BT' ? 'UN' : umRaw; // Unificar Botellas a Unidades
                             let cantidad = parseArgentineNumber(match[4]);
                             
                             if (!globalPdfData.items[articulo]) {
@@ -236,8 +245,9 @@
                 }
 
                 if (validFilesCount > 0) {
-                    document.getElementById('pdfCountBadge').innerText = `${validFilesCount} PDF(s) Procesado(s)`;
-                    document.getElementById('pdfCountBadge').classList.remove('hidden');
+                    let badge = document.getElementById('pdfCountBadge');
+                    badge.innerText = `${validFilesCount} PDF(s) Procesado(s)`;
+                    badge.classList.remove('hidden');
                     ejecutarConciliacion();
                 }
 
@@ -250,10 +260,12 @@
             }
         }
 
-        // ================= PARSEO REPORTE JDE (Algoritmo Dinámico Multi-formato) =================
+        // ================= PARSEO REPORTE JDE =================
         function procesarJde(file) {
             hideMessage();
             loadingIndicator.classList.remove('hidden');
+
+            globalJdeData.tipo = tipoReporteSelect.value; // Captura si es estandar o multiorden
 
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -275,14 +287,13 @@
                         let cells = Array.from(tr.cells).map(td => td.innerText.trim());
                         if (cells.length < 5) return;
                         
-                        // Validar si la fila corresponde a una línea de artículo (empieza con ubicación Ej: 1B.0B.031.0 o 10.0B.023.0)
+                        // Validar ubicación (Ej: 1B.0B.031.0 o 10.0B.023.0)
                         if (!cells[0].match(/^[0-9A-Z]+\.[0-9A-Z]+\.[0-9A-Z]+\.[0-9A-Z]+$/)) return;
                         
                         let ubicacion = cells[0];
-                        // Buscar la primer celda puramente numérica que representa el Artículo (Suele ser col 1 o 2)
                         let articulo = cells.slice(1).find(c => c.match(/^\d{4,6}$/)) || cells[1];
                         
-                        // Lectura INVERSA: Buscamos dónde está la Unidad de Medida (CA o UN)
+                        // Búsqueda inversa inteligente para sortear el error de cabeceras en Multiorden
                         let idxUM = -1;
                         for (let j = cells.length - 1; j >= 0; j--) {
                             if (['CA', 'UN', 'BT'].includes(cells[j].toUpperCase())) {
@@ -294,21 +305,17 @@
                             let umRaw = cells[idxUM].toUpperCase();
                             let um = umRaw === 'BT' ? 'UN' : umRaw;
                             
-                            // Una vez hallado UM, sabemos que las columnas anteriores son exactamente Cantidad, Línea y Orden.
-                            // Esto salva automáticamente el error del encabezado "Línea" del reporte Multiorden.
+                            // Gracias a leer desde atrás (donde está UM), no nos afecta si arriba dice "Linea" u "Orden"
                             let cantidad = parseArgentineNumber(cells[idxUM - 1]);
                             let linea = cells[idxUM - 2] || '-';
                             let orden = cells[idxUM - 3] || '-';
                             
-                            // Lo que quede entre el Artículo y la Orden es la Descripción y el Lote
                             let middleCells = cells.slice(cells.indexOf(articulo) + 1, idxUM - 3).filter(c => c !== '');
                             let desc = "";
                             let lote = "";
                             if (middleCells.length > 0) {
-                                // La descripción suele ser la celda con más caracteres
                                 desc = middleCells.reduce((a, b) => a.length > b.length ? a : b, "");
                                 let descIdx = middleCells.indexOf(desc);
-                                // Lo que haya antes de la descripción es el lote (si lo hay)
                                 lote = middleCells.slice(0, descIdx).join(' ');
                             }
                             
@@ -326,7 +333,10 @@
                     });
 
                     if(globalJdeData.list.length > 0) {
-                        document.getElementById('jdeLoadedBadge').classList.remove('hidden');
+                        let badge = document.getElementById('jdeLoadedBadge');
+                        let tipoLabel = globalJdeData.tipo === 'estandar' ? 'Estándar' : 'Multiorden';
+                        badge.innerText = `Reporte JDE Cargado (${tipoLabel})`;
+                        badge.classList.remove('hidden');
                         ejecutarConciliacion();
                     } else {
                         showMessage("No se encontraron registros estructurados en el reporte JDE.", true);
@@ -342,7 +352,7 @@
             reader.readAsText(file, "ISO-8859-1");
         }
 
-        // ================= MOTOR DE CONCILIACIÓN POR SKU =================
+        // ================= MOTOR DE CONCILIACIÓN =================
         function ejecutarConciliacion() {
             if(globalJdeData.list.length === 0 && Object.keys(globalPdfData.items).length === 0) return;
             
@@ -350,7 +360,6 @@
             skuReconciliation = {};
             let totalJdeCajas = 0, totalJdeUnidades = 0;
 
-            // 1. Agrupar líneas JDE por SKU
             globalJdeData.list.forEach(line => {
                 if(!skuReconciliation[line.Articulo]) {
                     skuReconciliation[line.Articulo] = { jdeCA: 0, jdeUN: 0, pdfCA: 0, pdfUN: 0, jdeLines: [] };
@@ -362,7 +371,6 @@
                 else totalJdeUnidades += line.Cantidad;
             });
 
-            // 2. Sumar datos de PDFs por SKU
             Object.keys(globalPdfData.items).forEach(art => {
                 if(!skuReconciliation[art]) {
                     skuReconciliation[art] = { jdeCA: 0, jdeUN: 0, pdfCA: 0, pdfUN: 0, jdeLines: [] };
@@ -371,7 +379,6 @@
                 skuReconciliation[art].pdfUN += globalPdfData.items[art].UN;
             });
 
-            // Actualizar KPIs Visuales (Totales)
             document.getElementById('kpiJdeCajas').innerText = totalJdeCajas.toLocaleString('es-AR');
             document.getElementById('kpiPdfCajas').innerText = globalPdfData.totalCajas.toLocaleString('es-AR');
             pintarDif(document.getElementById('kpiDifCajas'), totalJdeCajas - globalPdfData.totalCajas);
@@ -389,7 +396,7 @@
             else el.className = "text-xl font-black p-1 rounded inline-block min-w-[3rem] bg-rose-100 text-rose-800";
         }
 
-        // ================= RENDERIZADO DEL PANEL DE EXCEPCIONES =================
+        // ================= RENDERIZADO EXCEPCIONES =================
         function renderizarPanelDiferencias() {
             const tbody = document.getElementById('diferenciasTablaBody');
             tbody.innerHTML = '';
@@ -409,7 +416,6 @@
                     let badgeHTML = `<span class="bg-rose-100 text-rose-800 px-2 py-1 rounded text-[10px] font-extrabold shadow-sm block whitespace-nowrap">${alertas.join('<br>')}</span>`;
 
                     if (data.jdeLines.length > 0) {
-                        // Imprime TODAS las líneas del SKU que presentó discrepancia
                         data.jdeLines.forEach((line, idx) => {
                             let isFirst = idx === 0;
                             let row = `
@@ -428,7 +434,6 @@
                             tbody.insertAdjacentHTML('beforeend', row);
                         });
                     } else {
-                        // Caso crítico: El artículo está facturado en el remito pero NO existe en el JDE
                         let row = `
                             <tr class="bg-amber-50 hover:bg-amber-100 border-b border-amber-200 text-xs">
                                 <td class="p-3 font-mono text-slate-400">-</td>
