@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conciliador Unificado: Surtido vs Facturación - M2</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    
+    <style>
+        .drag-active { background-color: #f0fdf4; border-color: #22c55e; }
+        .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
+
+    <div class="max-w-7xl mx-auto p-6 pt-10">
+        <div class="flex flex-col md:flex-row justify-between items-start mb-8 gap-4 border-b border-slate-200 pb-6">
+            <div class="text-left">
+                <h1 class="text-3xl font-extrabold text-blue-900 mb-1">Conciliador de Surtido y Comprobantes</h1>
+                <p class="text-slate-500 font-medium">by M2 Consultoria Digital</p>
+                <p class="text-sm text-slate-400 mt-2 italic">Cruce inteligente de reportes JDE contra Facturas/Remitos físicos</p>
+            </div>
+            <div class="bg-white p-2 rounded-lg shadow-sm border border-slate-100 flex items-center justify-center">
+                <div class="text-right pr-2 font-bold text-xs text-blue-900 uppercase tracking-wider">M2 Digital</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            
+            <div id="dropZonePdf" class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 hover:border-blue-400 hover:bg-blue-50/30 shadow-sm group">
+                <div class="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition-transform">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                </div>
+                <p class="text-lg font-semibold text-slate-700">1. Comprobantes (PDF)</p>
+                <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider font-bold">Arrastrá Facturas/Remitos o hacé clic</p>
+                <div id="pdfCountBadge" class="hidden mt-2 inline-block bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-bold"></div>
+                <input type="file" id="pdfFileInput" accept="application/pdf" multiple class="hidden" />
+            </div>
+
+            <div id="dropZoneJde" class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-6 shadow-sm">
+                <div class="flex flex-col items-center text-center h-full justify-between">
+                    <div class="w-full">
+                        <div class="bg-orange-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2">
+                            <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                        </div>
+                        <p class="text-lg font-semibold text-slate-700">2. Reporte JDE Surtido</p>
+                    </div>
+                    
+                    <div class="w-full my-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo Surtido:</label>
+                            <select id="tipoReporte" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:border-orange-400">
+                                <option value="estandar">Surtido Estándar</option>
+                                <option value="multiorden">Surtido Multiorden</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Archivo (.html/.htm):</label>
+                            <input type="file" id="jdeFileInput" accept=".xls,.xlsx,.htm,.html" class="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 cursor-pointer" />
+                        </div>
+                    </div>
+                    <div id="jdeLoadedBadge" class="hidden bg-orange-100 text-orange-800 text-xs px-2.5 py-1 rounded-full font-bold">Reporte JDE Cargado</div>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="messageBox" class="hidden mb-6 p-4 rounded-xl text-sm font-medium text-center"></div>
+        <div id="loadingIndicator" class="hidden flex flex-col items-center justify-center py-6">
+            <div class="spinner mb-2"></div>
+            <p class="text-blue-700 text-xs font-bold uppercase tracking-widest">Procesando documentos...</p>
+        </div>
+
+        <div id="cruceContainer" class="hidden mb-8 bg-white border border-slate-200 rounded-2xl shadow-md p-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-4 mb-4 gap-2">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800">📊 Tablero de Conciliación de Carga</h2>
+                    <p class="text-xs text-slate-400 uppercase tracking-wider font-bold mt-0.5">Comparativa directa Surtido JDE vs Comprobantes Emitidos</p>
+                </div>
+                <button onclick="exportarTodoExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Exportar Master Completo
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="border border-slate-100 rounded-xl p-4 bg-slate-50/50">
+                    <h3 class="text-sm font-black text-slate-400 uppercase tracking-wider mb-3">Control de Cajas (CA)</h3>
+                    <div class="grid grid-cols-3 text-center gap-2">
+                        <div>
+                            <span class="block text-xs font-bold text-slate-500 uppercase">JDE Surtido</span>
+                            <span id="kpiJdeCajas" class="text-lg font-extrabold text-slate-700">0</span>
+                        </div>
+                        <div>
+                            <span class="block text-xs font-bold text-slate-500 uppercase">Facturado</span>
+                            <span id="kpiPdfCajas" class="text-lg font-extrabold text-slate-700">0</span>
+                        </div>
+                        <div>
+                            <span class="block text-xs font-bold text-slate-500 uppercase">Diferencia</span>
+                            <span id="kpiDifCajas" class="text-lg font-black p-0.5 rounded">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border border-slate-100 rounded-xl p-4 bg-slate-50/50">
+                    <h3 class="text-sm font-black text-slate-400 uppercase tracking-wider mb-3">Control de Unidades / Botellas (UN)</h3>
+                    <div class="grid grid-cols-3 text-center gap-2">
+                        <div>
+                            <span class="block text-xs font-bold text-slate-500 uppercase">JDE Surtido</span>
+                            <span id="kpiJdeUnidades" class="text-lg font-extrabold text-slate-700">0</span>
+                        </div>
+                        <div>
+                            <span class="block text-xs font-bold text-slate-500 uppercase">Facturado</span>
+                            <span id="kpiPdfUnidades" class="text-lg font-extrabold text-slate-700">0</span>
+                        </div>
+                        <div>
+                            <span class="block text-xs font-bold text-slate-500 uppercase">Diferencia</span>
+                            <span id="kpiDifUnidades" class="text-lg font-black p-0.5 rounded">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            
+            <div class="lg:col-span-2 space-y-6">
+                <div id="jdeSection" class="hidden bg-white shadow-md rounded-2xl border border-slate-200 overflow-hidden">
+                    <div class="bg-orange-600 p-4 text-white flex justify-between items-center">
+                        <h3 class="font-bold text-base flex items-center gap-2">
+                            📋 Detalle Reporte JDE Surtido (Carga: <span id="jdeCargaLabel">--</span>)
+                        </h3>
+                        <span id="jdeTipoLabel" class="bg-orange-700 px-3 py-1 rounded-full text-xs font-black uppercase"></span>
+                    </div>
+                    
+                    <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+                        <table class="w-full text-left text-sm text-slate-600">
+                            <thead class="bg-slate-100 sticky top-0 font-bold border-b border-slate-200">
+                                <tr>
+                                    <th class="p-3">ART</th>
+                                    <th class="p-3">Descripción</th>
+                                    <th class="p-3">Sección</th>
+                                    <th class="p-3">UM</th>
+                                    <th class="p-3 text-right">Cantidad</th>
+                                    <th class="p-3">Ubicación</th>
+                                </tr>
+                            </thead>
+                            <tbody id="jdeTablaBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1 space-y-6">
+                <div id="pdfSection" class="hidden">
+                    <h3 class="font-bold text-slate-700 text-lg mb-4 flex items-center gap-2">
+                        📂 Comprobantes por Carta de Porte
+                    </h3>
+                    <div id="groupedTablesContainer" class="space-y-4 max-h-[560px] overflow-y-auto pr-1">
+                        </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        // --- Selectores Globales ---
+        const dropZonePdf = document.getElementById('dropZonePdf');
+        const pdfFileInput = document.getElementById('pdfFileInput');
+        const jdeFileInput = document.getElementById('jdeFileInput');
+        const dropZoneJde = document.getElementById('dropZoneJde');
+        
+        const messageBox = document.getElementById('messageBox');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const cruceContainer = document.getElementById('cruceContainer');
+        const jdeSection = document.getElementById('jdeSection');
+        const pdfSection = document.getElementById('pdfSection');
+        
+        // --- Stores Globales de datos ---
+        let globalPdfData = { grouped: {}, totalCajas: 0, totalUnidades: 0 };
+        let globalJdeData = { list: [], totalCajas: 0, totalUnidades: 0, carga: "S/C", tipo: "" };
+
+        // --- Eventos de Arrastre para PDFs ---
+        dropZonePdf.addEventListener('click', () => pdfFileInput.click());
+        dropZonePdf.addEventListener('dragover', (e) => { e.preventDefault(); dropZonePdf.classList.add('drag-active'); });
+        dropZonePdf.addEventListener('dragleave', () => { dropZonePdf.classList.remove('drag-active'); });
+        dropZonePdf.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZonePdf.classList.remove('drag-active');
+            if (e.dataTransfer.files.length > 0) procesarPdfs(e.dataTransfer.files);
+        });
+        pdfFileInput.addEventListener('change', () => {
+            if (pdfFileInput.files.length > 0) procesarPdfs(pdfFileInput.files);
+        });
+
+        // --- Eventos de Carga para JDE ---
+        jdeFileInput.addEventListener('change', () => {
+            if (jdeFileInput.files.length > 0) ejecutarProcesamientoJde(jdeFileInput.files[0]);
+        });
+
+        // --- Utilidades del parseo ---
+        function parseArgentineNumber(str) {
+            if (!str) return 0;
+            let cleanStr = str.replace(/\./g, '').replace(',', '.');
+            let num = parseFloat(cleanStr);
+            return isNaN(num) ? 0 : num;
+        }
+        function formatearUbicacion(ubicacion) {
+            if (!ubicacion) return "";
+            let u = ubicacion.replace(/\./g, '').trim().toUpperCase();
+            return u.slice(-5);
+        }
+        function calcularCancha(ubicacion) {
+            if (!ubicacion) return "";
+            let u = ubicacion.replace(/\./g, '').trim().toUpperCase();
+            if (u.startsWith("100")) return "DEPO";
+            if (u.startsWith("200M") || u.startsWith("200L")) return "CAVA";
+            if (u.startsWith("200")) return "ANEXO";
+            if (u.startsWith("400V")) return "VAGONES";
+            if (u.startsWith("400Q")) return "EXCAVA";
+            return ""; 
+        }
+        function parsearCantidadJde(str) {
+            if (!str) return 0;
+            let clean = str.trim().replace(/\s/g, '');
+            if (clean.includes(',') && clean.includes('.')) {
+                clean = clean.replace(/\./g, '').replace(',', '.');
+            } else if (clean.includes(',')) {
+                clean = clean.replace(',', '.');
+            }
+            let num = parseFloat(clean);
+            return isNaN(num) ? 0 : num;
+        }
+
+        function showMessage(msg, isError = false) {
+            messageBox.textContent = msg;
+            messageBox.className = `mb-6 p-4 rounded-xl text-sm font-bold ${isError ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'} block`;
+        }
+        function hideMessage() { messageBox.classList.add('hidden'); }
+
+        // ================= PARSEO 1: PROCESAMIENTO DE COMPROBANTES (PDFs) =================
+        async function procesarPdfs(files) {
+            hideMessage();
+            loadingIndicator.classList.remove('hidden');
+            
+            let allDocsMap = {};
+            globalPdfData = { grouped: {}, totalCajas: 0, totalUnidades: 0 };
+            let validFilesCount = 0;
+
+            try {
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (file.type !== 'application/pdf') continue;
+                    validFilesCount++;
+
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    
+                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                        const page = await pdf.getPage(pageNum);
+                        const textContent = await page.getTextContent();
+                        let pageText = textContent.items.map(item => item.str).join(' ').replace(/\s+/g, ' ');
+
+                        const docMatch = pageText.match(/Nro\.?\s*:\s*(\d{4,5}\s*-\s*\d{8})/i);
+                        
+                        if (docMatch) {
+                            const currentDocNumber = docMatch[1];
+                            let docType = "Documento";
+
+                            if (pageText.match(/Documento\s+no\s+v[aá]lido\s+como\s+factura/i) || pageText.match(/Remito\s+[R]/i)) {
+                                docType = "Remito";
+                            } else if (pageText.match(/Factura\s+[A-C]/i) || pageText.match(/Factura/i)) {
+                                docType = "Factura";
+                            } else if (pageText.match(/Remito/i)) {
+                                docType = "Remito";
+                            }
+
+                            if (!allDocsMap[currentDocNumber]) {
+                                allDocsMap[currentDocNumber] = {
+                                    tipo: docType, numero: currentDocNumber, cartaPorte: 'Sin CP', cajas: 0, unidades: 0
+                                };
+                            }
+
+                            const cpMatch = pageText.match(/Carta\s+Porte.*?:\s*(\d+)/i);
+                            if (cpMatch) allDocsMap[currentDocNumber].cartaPorte = cpMatch[1];
+
+                            const cajasMatch = pageText.match(/Total\s+Cajas\s*:\s*([\d.,]+)/i);
+                            if (cajasMatch) allDocsMap[currentDocNumber].cajas = parseArgentineNumber(cajasMatch[1]);
+
+                            const uniMatch = pageText.match(/(?:Total\s+Unidades|Botellas)\s*:\s*([\d.,]+)/i);
+                            if (uniMatch) allDocsMap[currentDocNumber].unidades = parseArgentineNumber(uniMatch[1]);
+                        }
+                    }
+                }
+
+                // Agrupamos estructuradamente
+                Object.values(allDocsMap).forEach(doc => {
+                    const cp = doc.cartaPorte;
+                    if (!globalPdfData.grouped[cp]) {
+                        globalPdfData.grouped[cp] = { docs: [], totalCajas: 0, totalUnidades: 0 };
+                    }
+                    globalPdfData.grouped[cp].docs.push(doc);
+                    globalPdfData.grouped[cp].totalCajas += doc.cajas;
+                    globalPdfData.grouped[cp].totalUnidades += doc.unidades;
+                    
+                    globalPdfData.totalCajas += doc.cajas;
+                    globalPdfData.totalUnidades += doc.unidades;
+                });
+
+                if (validFilesCount > 0) {
+                    document.getElementById('pdfCountBadge').innerText = `${validFilesCount} PDF(s) Procesado(s)`;
+                    document.getElementById('pdfCountBadge').classList.remove('hidden');
+                    renderizarPdfsUI();
+                    pdfSection.classList.remove('hidden');
+                    ejecutarConciliacion();
+                } else {
+                    showMessage("No se seleccionaron archivos PDF válidos.", true);
+                }
+
+            } catch (error) {
+                console.error(error);
+                showMessage("Error al procesar PDFs locales.", true);
+            } finally {
+                loadingIndicator.classList.add('hidden');
+                pdfFileInput.value = '';
+            }
+        }
+
+        function renderizarPdfsUI() {
+            const container = document.getElementById('groupedTablesContainer');
+            container.innerHTML = '';
+            
+            Object.keys(globalPdfData.grouped).sort().forEach(cp => {
+                const group = globalPdfData.grouped[cp];
+                const box = document.createElement('div');
+                box.className = 'bg-white shadow-sm border border-slate-200 rounded-xl overflow-hidden text-xs';
+                
+                let rows = group.docs.map(doc => {
+                    const color = doc.tipo === 'Factura' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700';
+                    return `
+                        <tr class="border-b border-slate-50 hover:bg-slate-50">
+                            <td class="p-2"><span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${color}">${doc.tipo}</span></td>
+                            <td class="p-2 font-mono text-slate-500">${doc.numero}</td>
+                            <td class="p-2 text-right font-semibold">${doc.cajas.toLocaleString('es-AR')}</td>
+                            <td class="p-2 text-right font-semibold">${doc.unidades.toLocaleString('es-AR')}</td>
+                        </tr>`;
+                }).join('');
+
+                box.innerHTML = `
+                    <div class="bg-slate-100 p-2 border-b border-slate-200 flex justify-between items-center font-bold">
+                        <span>CP: <span class="text-blue-700 font-extrabold">${cp}</span></span>
+                        <span class="text-slate-400 text-[10px] uppercase">${group.docs.length} ítems</span>
+                    </div>
+                    <table class="w-full text-left">
+                        <tbody class="divide-y divide-slate-100">${rows}</tbody>
+                        <tfoot class="bg-slate-50 font-bold border-t text-slate-700">
+                            <tr>
+                                <td colspan="2" class="p-2 text-right text-[10px] uppercase text-slate-400">Subtotales:</td>
+                                <td class="p-2 text-right text-blue-900">${group.totalCajas.toLocaleString('es-AR')}</td>
+                                <td class="p-2 text-right text-purple-900">${group.totalUnidades.toLocaleString('es-AR')}</td>
+                            </tr>
+                        </tfoot>
+                    </table>`;
+                container.appendChild(box);
+            });
+        }
+
+        // ================= PARSEO 2: PROCESAMIENTO REPORTE JDE (HTML) =================
+        function ejecutarProcesamientoJde(file) {
+            hideMessage();
+            loadingIndicator.classList.remove('hidden');
+            const tipo = document.getElementById('tipoReporte').value;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(e.target.result, "text/html");
+                    const rows = Array.from(doc.querySelectorAll('tr'));
+                    
+                    let datosTemporales = []; 
+                    globalJdeData.totalCajas = 0;
+                    globalJdeData.totalUnidades = 0;
+                    globalJdeData.carga = "S/C";
+                    globalJdeData.tipo = tipo;
+
+                    if (tipo === 'estandar') {
+                        let tipoSeccion = "";
+                        rows.forEach(tr => {
+                            const text = tr.innerText.toUpperCase();
+                            if(text.includes("CARGA:")) { const m = text.match(/CARGA:\s*(\d+)/); if(m) globalJdeData.carga = m[1]; }
+                            if(text.includes("PALLET HOMOGENEO")) tipoSeccion = "pallet completo";
+                            if(text.includes("PALLET MIXTO")) tipoSeccion = "picking";
+
+                            const c = Array.from(tr.cells).map(td => td.innerText.trim());
+                            if(c.length >= 8 && c[0].includes(".") && !isNaN(parseInt(c[1]))) {
+                                let ubicacionRaw = c[0];
+                                let unidadMedida = c.slice(7).join(" ").toUpperCase().includes("CA") ? "CA" : "UN";
+                                let cantidad = parseInt(c[8]) || 0;
+                                
+                                if (unidadMedida === 'CA') globalJdeData.totalCajas += cantidad; else globalJdeData.totalUnidades += cantidad;
+
+                                datosTemporales.push({
+                                    "Carga": globalJdeData.carga, "ART": c[1], "Descripción": c[4] || "", "PM/PH": tipoSeccion,
+                                    "Desc UM": unidadMedida, "Cantidad": cantidad,
+                                    "Ubicacion": formatearUbicacion(ubicacionRaw), "Cancha": calcularCancha(ubicacionRaw)
+                                });
+                            }
+                        });
+                    } else if (tipo === 'multiorden') {
+                        let contextoActual = {};
+                        rows.forEach(tr => {
+                            let text = tr.innerText.trim();
+                            let cells = Array.from(tr.cells).map(td => td.innerText.trim());
+                            if (text.toUpperCase().includes("CARGA:")) { const m = text.match(/CARGA:\s*(\d+)/i); if (m) globalJdeData.carga = m[1]; }
+                            if (cells.length >= 8 && cells[0].includes('.')) contextoActual = { ubicacion: cells[0], articulo: cells[1], desc: cells[3] };
+                            if (text.toUpperCase().includes('TOTAL SURTIDO')) {
+                                let match = text.match(/TOTAL SURTIDO:?\s*([\d\.,]+)\s*([A-Za-z]+)/i);
+                                if (match && contextoActual.articulo) {
+                                    let cant = parsearCantidadJde(match[1]);
+                                    let um = match[2].toUpperCase();
+                                    if (um === 'CA') globalJdeData.totalCajas += cant; else globalJdeData.totalUnidades += cant;
+                                    
+                                    datosTemporales.push({
+                                        "Carga": globalJdeData.carga, "ART": contextoActual.articulo, "Descripción": contextoActual.desc,
+                                        "PM/PH": "picking", "Desc UM": um, "Cantidad": cant,
+                                        "Ubicacion": formatearUbicacion(contextoActual.ubicacion), "Cancha": calcularCancha(contextoActual.ubicacion)
+                                    });
+                                    contextoActual = {};
+                                }
+                            }
+                        });
+                    }
+
+                    // Consolidación inteligente de Picking
+                    globalJdeData.list = [];
+                    datosTemporales.forEach(row => {
+                        if (row["PM/PH"] === "picking") {
+                            let existente = globalJdeData.list.find(r => 
+                                r["PM/PH"] === "picking" && r["ART"] === row["ART"] && r["Desc UM"] === row["Desc UM"] && r["Ubicacion"] === row["Ubicacion"]
+                            );
+                            if (existente) existente["Cantidad"] += row["Cantidad"];
+                            else globalJdeData.list.push(row);
+                        } else {
+                            globalJdeData.list.push(row);
+                        }
+                    });
+
+                    if(globalJdeData.list.length > 0) {
+                        document.getElementById('jdeLoadedBadge').classList.remove('hidden');
+                        renderizarJdeUI();
+                        jdeSection.classList.remove('hidden');
+                        ejecutarConciliacion();
+                    } else {
+                        showMessage("No se encontraron registros estructurados en el reporte JDE.", true);
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    showMessage("Error al procesar el archivo JDE.", true);
+                } finally {
+                    loadingIndicator.classList.add('hidden');
+                }
+            };
+            reader.readAsText(file, "ISO-8859-1");
+        }
+
+        function renderizarJdeUI() {
+            document.getElementById('jdeCargaLabel').innerText = globalJdeData.carga;
+            document.getElementById('jdeTipoLabel').innerText = globalJdeData.tipo;
+            
+            const tbody = document.getElementById('jdeTablaBody');
+            tbody.innerHTML = '';
+
+            globalJdeData.list.forEach(f => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 border-b border-slate-100 text-xs";
+                
+                let badgeColor = f["PM/PH"] === 'picking' ? 'text-orange-600 bg-orange-50' : 'text-emerald-600 bg-emerald-50';
+                
+                tr.innerHTML = `
+                    <td class="p-3 font-bold text-slate-700">${f["ART"]}</td>
+                    <td class="p-3 font-medium text-slate-500">${f["Descripción"]}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 font-bold rounded ${badgeColor}">${f["PM/PH"]}</span></td>
+                    <td class="p-3 font-bold">${f["Desc UM"]}</td>
+                    <td class="p-3 text-right font-extrabold text-slate-800">${f["Cantidad"].toLocaleString('es-AR')}</td>
+                    <td class="p-3 font-mono text-slate-500">${f["Ubicacion"]} <span class="text-[10px] text-slate-400">(${f["Cancha"]})</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ================= LÓGICA DE CRUCE Y CONCILIACIÓN INMEDIATA =================
+        function ejecutarConciliacion() {
+            // Mostramos el contenedor general de cruce si al menos uno tiene datos
+            if(globalPdfData.totalCajas > 0 || globalJdeData.totalCajas > 0 || globalPdfData.totalUnidades > 0 || globalJdeData.totalUnidades > 0) {
+                cruceContainer.classList.remove('hidden');
+            }
+
+            // Actualizar KPIs Cajas
+            document.getElementById('kpiJdeCajas').innerText = globalJdeData.totalCajas.toLocaleString('es-AR');
+            document.getElementById('kpiPdfCajas').innerText = globalPdfData.totalCajas.toLocaleString('es-AR');
+            
+            let difCajas = globalJdeData.totalCajas - globalPdfData.totalCajas;
+            const kpiDifCajas = document.getElementById('kpiDifCajas');
+            kpiDifCajas.innerText = (difCajas > 0 ? `+${difCajas}` : difCajas).toLocaleString('es-AR');
+            pintarDiferencia(kpiDifCajas, difCajas);
+
+            // Actualizar KPIs Unidades
+            document.getElementById('kpiJdeUnidades').innerText = globalJdeData.totalUnidades.toLocaleString('es-AR');
+            document.getElementById('kpiPdfUnidades').innerText = globalPdfData.totalUnidades.toLocaleString('es-AR');
+            
+            let difUnidades = globalJdeData.totalUnidades - globalPdfData.totalUnidades;
+            const kpiDifUnidades = document.getElementById('kpiDifUnidades');
+            kpiDifUnidades.innerText = (difUnidades > 0 ? `+${difUnidades}` : difUnidades).toLocaleString('es-AR');
+            pintarDiferencia(kpiDifUnidades, difUnidades);
+        }
+
+        function pintarDiferencia(elemento, valor) {
+            if(valor === 0) {
+                elemento.className = "text-lg font-black p-0.5 rounded bg-emerald-100 text-emerald-800";
+            } else {
+                elemento.className = "text-lg font-black p-0.5 rounded bg-rose-100 text-rose-800";
+            }
+        }
+
+        // ================= EXPORTACIÓN CONSOLIDADA A EXCEL MULTI-HOJA =================
+        function exportarTodoExcel() {
+            const wb = XLSX.utils.book_new();
+
+            // Hoja 1: Resumen General de Conciliación
+            let resumenData = [
+                { "Métrica": "Cajas Totales (CA)", "JDE Surtido": globalJdeData.totalCajas, "Facturas/Remitos": globalPdfData.totalCajas, "Diferencia": globalJdeData.totalCajas - globalPdfData.totalCajas },
+                { "Métrica": "Unidades Totales (UN)", "JDE Surtido": globalJdeData.totalUnidades, "Facturas/Remitos": globalPdfData.totalUnidades, "Diferencia": globalJdeData.totalUnidades - globalPdfData.totalUnidades }
+            ];
+            const wsResumen = XLSX.utils.json_to_sheet(resumenData);
+            XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen Conciliacion");
+
+            // Hoja 2: Detalle del Surtido JDE
+            if(globalJdeData.list.length > 0) {
+                const wsJde = XLSX.utils.json_to_sheet(globalJdeData.list);
+                XLSX.utils.book_append_sheet(wb, wsJde, "Detalle JDE Surtido");
+            }
+
+            // Hoja 3: Detalle de Comprobantes PDFs
+            let pdfPlano = [];
+            Object.keys(globalPdfData.grouped).forEach(cp => {
+                globalPdfData.grouped[cp].docs.forEach(d => {
+                    pdfPlano.push({
+                        "Carta de Porte": cp, "Tipo Comprobante": d.tipo, "Número": d.numero, "Cajas": d.cajas, "Unidades/Botellas": d.unidades
+                    });
+                });
+            });
+            if(pdfPlano.length > 0) {
+                const wsPdf = XLSX.utils.json_to_sheet(pdfPlano);
+                XLSX.utils.book_append_sheet(wb, wsPdf, "Detalle Comprobantes");
+            }
+
+            // Guardar Libro Completo
+            let numCarga = globalJdeData.carga !== "S/C" ? globalJdeData.carga : "Consolidado";
+            XLSX.writeFile(wb, `Conciliacion_M2_Carga_${numCarga}.xlsx`);
+        }
+    </script>
+</body>
+</html>
