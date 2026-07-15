@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario control de voz (DEMO) - M2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700;900&display=swap');
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f3f6f9; padding-bottom: 100px; color: #1e3a8a; }
+        .aza-card { background: white; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); padding: 1.5rem; margin-bottom: 1rem; border: 1px solid #e5e7eb; }
+        .btn-primary { background-color: #1e3a8a; color: white; font-weight: 800; width: 100%; padding: 14px; border-radius: 8px; transition: 0.2s; text-transform: uppercase; }
+        .btn-primary:active { transform: scale(0.98); }
+        .input-manual { border: 2px solid #d1d5db; border-radius: 8px; padding: 12px; width: 100%; text-align: center; font-weight: bold; color: #1e3a8a; outline: none; }
+        .input-manual:focus { border-color: #3b82f6; }
+        .mic-float { position: fixed; bottom: 20px; right: 20px; width: 65px; height: 65px; background-color: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(59,130,246,0.5); z-index: 100; border: 3px solid white; cursor: pointer; }
+        .listening { background-color: #ef4444; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        .ubicacion-activa { background-color: #dcfce7 !important; border-color: #22c55e !important; color: #16a34a !important; }
+        /* Estilo para el input date */
+        input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; transition: 0.2s; }
+        input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+    </style>
+</head>
+<body class="p-4 max-w-lg mx-auto">
+
+<header class="text-center mb-6 mt-2">
+    <h1 class="text-2xl font-black text-[#1e3a8a] uppercase tracking-tight">Inventario AMBALOG <span class="text-blue-500">Vitalcan</span></h1>
+    <p class="text-[11px] text-gray-500 font-bold tracking-widest uppercase mt-1">Toma de Inventario con Sistema de Voz</p>
+</header>
+
+<div class="aza-card">
+    <label class="text-[11px] font-bold text-gray-500 block mb-2 uppercase tracking-wide">Archivo Maestro (Excel)</label>
+    <input type="file" id="upload-excel" accept=".xlsx, .xls" class="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-3 cursor-pointer">
+    <button onclick="importarExcel()" class="btn-primary flex justify-center items-center gap-2">
+        <span>📂</span> Cargar Base (Excel)
+    </button>
+</div>
+
+<div class="aza-card border-l-4 border-orange-500">
+    <label class="text-[11px] font-bold text-orange-600 block mb-2 uppercase tracking-wide">Paso 1: Ubicación (CDB)</label>
+    <div class="flex gap-2">
+        <input type="text" id="input-ubicacion" placeholder="Escanear o tipear CDB..." class="input-manual text-sm">
+        <button onclick="buscarUbicacionManual()" class="bg-orange-100 text-orange-700 px-4 rounded-lg font-black border-2 border-orange-200">OK</button>
+        <button onclick="abrirEscaner('ubicacion')" class="bg-gray-800 text-white px-4 rounded-lg shadow-md">📷</button>
+    </div>
+    <p id="ubi-status" class="text-[10px] text-gray-400 mt-2 font-bold italic">Esperando ubicación válida...</p>
+</div>
+
+<div class="aza-card border-l-4 border-blue-500 opacity-50 pointer-events-none transition-opacity duration-300" id="seccion-articulo">
+    <label class="text-[11px] font-bold text-blue-600 block mb-2 uppercase tracking-wide">Paso 2: Artículo (EAN o Código)</label>
+    <div class="flex gap-2 mb-3">
+        <input type="text" id="input-ean" placeholder="Escanear o tipear código..." class="input-manual">
+        <button onclick="buscarArticuloManual()" class="bg-blue-100 text-blue-700 px-4 rounded-lg font-black border-2 border-blue-200">OK</button>
+    </div>
+    <button onclick="abrirEscaner('articulo')" class="w-full bg-blue-600 text-white py-4 rounded-lg font-black text-sm uppercase shadow-lg flex justify-center items-center gap-2">
+        📷 Escanear Artículo
+    </button>
+</div>
+
+<div id="scanner-wrapper" class="hidden fixed inset-0 bg-black z-[200] flex flex-col">
+    <div class="p-4 flex justify-between items-center text-white bg-gray-900">
+        <span id="scanner-label" class="font-bold uppercase tracking-wider text-sm text-blue-400">Escaneando...</span>
+        <button onclick="cerrarEscaner()" class="bg-red-500 text-white font-bold px-4 py-2 rounded-lg text-xs uppercase">Cancelar ❌</button>
+    </div>
+    <div id="reader" class="w-full flex-1 bg-black"></div>
+</div>
+
+<div id="panel-conteo" class="aza-card hidden border-4 border-green-400 bg-green-50 shadow-2xl relative">
+    <button onclick="cerrarPanelConteo()" class="absolute top-2 right-2 text-red-500 font-black p-2 text-xs uppercase">❌ Cancelar</button>
+    <div class="text-center mt-4">
+        <span id="art-nombre" class="text-xs font-bold text-gray-500 uppercase block leading-tight px-4 mb-2">---</span>
+        <span id="art-codigo" class="text-3xl font-black text-blue-900 block mb-1 tracking-tighter">---</span>
+        <span id="art-unixbul" class="text-[10px] font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded-full mb-4 inline-block uppercase">1 Bulto = 1 Unidad</span>
+        
+        <div class="bg-white p-4 rounded-2xl shadow-inner mt-2">
+            <div class="flex justify-center gap-2 mb-4">
+                <div class="w-1/2">
+                    <input type="radio" id="tipo-bul" name="tipo_ingreso" value="bulto" class="hidden peer">
+                    <label for="tipo-bul" class="w-full py-3 bg-gray-50 border-2 border-gray-200 rounded-lg peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:text-green-700 font-black cursor-pointer block text-xs uppercase transition-all">📦 Bultos</label>
+                </div>
+                <div class="w-1/2">
+                    <input type="radio" id="tipo-un" name="tipo_ingreso" value="unidad" checked class="hidden peer">
+                    <label for="tipo-un" class="w-full py-3 bg-gray-50 border-2 border-gray-200 rounded-lg peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:text-green-700 font-black cursor-pointer block text-xs uppercase transition-all">🛍️ Unidades</label>
+                </div>
+            </div>
+
+            <span class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Cantidad Contada</span>
+            <input type="number" id="input-cantidad" value="1" class="text-5xl font-black text-center text-green-700 w-full bg-transparent border-b-4 border-green-200 outline-none mb-4 pb-2">
+            
+            <span class="text-[10px] font-bold text-orange-400 uppercase block mb-1 mt-2">Vencimiento (Opcional)</span>
+            <input type="date" id="input-vencimiento" class="text-xl font-bold text-center text-gray-700 w-full bg-transparent border-b-2 border-gray-200 outline-none mb-6 pb-2">
+
+            <button onclick="registrar()" class="w-full bg-green-600 text-white py-4 rounded-xl font-black shadow-lg text-lg uppercase transition-all active:scale-95">✅ Registrar</button>
+        </div>
+    </div>
+</div>
+
+<div class="aza-card">
+    <div class="flex justify-between items-center mb-4 border-b pb-2">
+        <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Últimos Registros</span>
+        <span id="counter" class="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">0 ITEMS</span>
+    </div>
+    <div id="history" class="space-y-3 max-h-48 overflow-y-auto mb-4 px-1"></div>
+    <button onclick="exportarExcel()" class="w-full bg-gray-800 text-white py-4 rounded-xl font-black text-sm shadow-xl uppercase flex justify-center items-center gap-2">
+        📥 Descargar Inventario
+    </button>
+</div>
+
+<div id="mic-btn" class="mic-float" onclick="alternarVoz()">
+    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+</div>
+
+<script>
+    let MAESTRA_ARTICULOS = {};
+    let MAESTRA_UBICACIONES = {};
+    let DATA_SESION = [];
+    let html5QrCode = null;
+    let tempArt = null;
+    let ubicacionValidada = ""; 
+    
+    // Configuración de Voz
+    const synth = window.speechSynthesis;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+    if(recognition) recognition.lang = 'es-ES';
+
+    function hablar(texto) { 
+        synth.cancel(); 
+        let u = new SpeechSynthesisUtterance(texto); 
+        u.lang = 'es-ES'; 
+        synth.speak(u); 
+    }
+
+    function beep(frecuencia = 1000) {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(frecuencia, audioCtx.currentTime);
+        oscillator.connect(audioCtx.destination);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.1);
+    }
+
+    // --- CARGA DE EXCEL ---
+    function importarExcel() {
+        const file = document.getElementById('upload-excel').files[0];
+        if(!file) return alert("Por favor, selecciona un archivo Excel primero.");
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, {type: 'array'});
+                
+                const sheetArt = wb.Sheets["articulos"];
+                if(sheetArt) {
+                    const rowsArt = XLSX.utils.sheet_to_json(sheetArt);
+                    MAESTRA_ARTICULOS = {};
+                    rowsArt.forEach(r => {
+                        let ean = String(r["EAN Unidad"] || "").trim().toUpperCase();
+                        let cod = String(r["Codigo"] || "").trim().toUpperCase();
+                        
+                        let dataArt = { codigo: cod, nombre: r["Nombre"], unixbul: parseFloat(r["UnixBul"]) || 1 };
+                        
+                        if(ean) MAESTRA_ARTICULOS[ean] = dataArt;
+                        if(cod) MAESTRA_ARTICULOS[cod] = dataArt;
+                    });
+                } else {
+                    throw new Error("Falta la pestaña 'articulos'");
+                }
+
+                const sheetUbi = wb.Sheets["ubicaciones"];
+                if(sheetUbi) {
+                    const rowsUbi = XLSX.utils.sheet_to_json(sheetUbi);
+                    MAESTRA_UBICACIONES = {};
+                    rowsUbi.forEach(r => {
+                        let cdb = String(r["CDB"] || "").trim().toUpperCase();
+                        if(cdb) MAESTRA_UBICACIONES[cdb] = { area: r["Area"], concatenado: String(r["Concatenena"] || r["Concatenado"] || cdb).toUpperCase() };
+                    });
+                } else {
+                    throw new Error("Falta la pestaña 'ubicaciones'");
+                }
+
+                hablar("Bases cargadas correctamente");
+                alert(`¡Éxito!\nBases cargadas y listas para usar.`);
+            } catch (err) {
+                alert("Error al procesar el Excel: " + err.message);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function abrirEscaner(modo) {
+        document.getElementById('scanner-wrapper').classList.remove('hidden');
+        document.getElementById('scanner-label').innerText = modo === 'ubicacion' ? 'Escanear Ubicación (CDB)' : 'Escanear Artículo (EAN)';
+        document.getElementById('scanner-label').className = modo === 'ubicacion' ? 'font-bold uppercase tracking-wider text-sm text-orange-400' : 'font-bold uppercase tracking-wider text-sm text-blue-400';
+        
+        html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
+            const codigoEscaneado = text.trim();
+            cerrarEscaner();
+            
+            if(modo === 'ubicacion') {
+                document.getElementById('input-ubicacion').value = codigoEscaneado;
+                procesarUbicacion(codigoEscaneado);
+            } else {
+                document.getElementById('input-ean').value = codigoEscaneado;
+                procesarArticulo(codigoEscaneado);
+            }
+        });
+    }
+
+    function cerrarEscaner() {
+        if(html5QrCode) {
+            html5QrCode.stop().then(() => {
+                document.getElementById('scanner-wrapper').classList.add('hidden');
+                html5QrCode = null;
+            });
+        } else {
+            document.getElementById('scanner-wrapper').classList.add('hidden');
+        }
+    }
+
+    function buscarUbicacionManual() {
+        let val = document.getElementById('input-ubicacion').value.trim();
+        if(val) procesarUbicacion(val);
+    }
+
+    function buscarArticuloManual() {
+        let val = document.getElementById('input-ean').value.trim();
+        if(val) procesarArticulo(val);
+    }
+
+    // --- LÓGICA DE NEGOCIO ---
+    function procesarUbicacion(codigo) {
+        codigo = codigo.toUpperCase();
+        let ubi = MAESTRA_UBICACIONES[codigo];
+        let inputUbi = document.getElementById('input-ubicacion');
+        let statusUbi = document.getElementById('ubi-status');
+        let seccionArticulo = document.getElementById('seccion-articulo');
+
+        if(ubi) {
+            beep(1200);
+            ubicacionValidada = ubi.concatenado;
+            inputUbi.value = ubi.concatenado; 
+            inputUbi.classList.add('ubicacion-activa');
+            statusUbi.innerHTML = `✅ Ubicación validada (Área: ${ubi.area || '-'})`;
+            statusUbi.classList.remove('text-gray-400', 'text-red-500');
+            statusUbi.classList.add('text-green-600');
+            seccionArticulo.classList.remove('opacity-50', 'pointer-events-none');
+            hablar("Ubicación " + ubi.concatenado);
+        } else {
+            beep(300);
+            
+            if(confirm(`La ubicación "${codigo}" no existe en la base. ¿Deseas ingresarla manualmente?`)) {
+                let nuevaUbi = prompt("Ingresá el nombre/código de la ubicación:", codigo);
+                if(nuevaUbi && nuevaUbi.trim() !== "") {
+                    MAESTRA_UBICACIONES[codigo] = {
+                        area: "MANUAL",
+                        concatenado: nuevaUbi.trim().toUpperCase()
+                    };
+                    return procesarUbicacion(codigo);
+                } else {
+                    hablar("Ingreso cancelado");
+                }
+            }
+
+            ubicacionValidada = "";
+            inputUbi.classList.remove('ubicacion-activa');
+            statusUbi.innerHTML = "❌ Código de ubicación no encontrado.";
+            statusUbi.classList.remove('text-gray-400', 'text-green-600');
+            statusUbi.classList.add('text-red-500');
+            seccionArticulo.classList.add('opacity-50', 'pointer-events-none');
+            inputUbi.value = "";
+            inputUbi.focus();
+        }
+    }
+
+    function procesarArticulo(codigoBuscado) {
+        codigoBuscado = codigoBuscado.toUpperCase();
+        if(!ubicacionValidada) {
+            alert("Primero debes validar una ubicación.");
+            return;
+        }
+
+        let art = MAESTRA_ARTICULOS[codigoBuscado];
+        if(art) {
+            beep(1500);
+            tempArt = art;
+            document.getElementById('art-nombre').innerText = art.nombre;
+            document.getElementById('art-codigo').innerText = art.codigo;
+            document.getElementById('art-unixbul').innerText = `1 BULTO = ${art.unixbul} UNIDADES`;
+            document.getElementById('input-cantidad').value = "1";
+            document.getElementById('input-vencimiento').value = ""; // Resetea el vencimiento
+            document.getElementById('tipo-un').checked = true;
+            
+            document.getElementById('panel-conteo').classList.remove('hidden');
+            hablar(art.codigo);
+        } else {
+            beep(300);
+            
+            if(confirm(`El código "${codigoBuscado}" no existe. ¿Deseas ingresarlo manualmente?`)) {
+                let nuevoCod = prompt("PASO 1/2: Ingresá el CÓDIGO del artículo:", codigoBuscado);
+                if(nuevoCod && nuevoCod.trim() !== "") {
+                    let nuevaDesc = prompt("PASO 2/2: Ingresá la DESCRIPCIÓN del artículo:");
+                    if(nuevaDesc && nuevaDesc.trim() !== "") {
+                        let nuevoObjeto = {
+                            codigo: nuevoCod.trim().toUpperCase(),
+                            nombre: nuevaDesc.trim().toUpperCase(),
+                            unixbul: 1 
+                        };
+                        MAESTRA_ARTICULOS[codigoBuscado] = nuevoObjeto;
+                        MAESTRA_ARTICULOS[nuevoCod.trim().toUpperCase()] = nuevoObjeto;
+                        return procesarArticulo(codigoBuscado); 
+                    }
+                }
+                hablar("Ingreso cancelado");
+                return;
+            }
+
+            hablar("Artículo no encontrado");
+        }
+    }
+
+    function cerrarPanelConteo() {
+        document.getElementById('panel-conteo').classList.add('hidden');
+        document.getElementById('input-ean').value = "";
+        document.getElementById('input-vencimiento').value = ""; // Resetea el vencimiento al cancelar
+        tempArt = null;
+    }
+
+    function registrar() {
+        let cant = parseFloat(document.getElementById('input-cantidad').value);
+        let tipo = document.querySelector('input[name="tipo_ingreso"]:checked').value;
+        let venc = document.getElementById('input-vencimiento').value;
+        
+        if(!ubicacionValidada) return alert("Falta validar la ubicación.");
+        if(!tempArt || isNaN(cant) || cant <= 0) return alert("Cantidad inválida.");
+
+        let totalUnidades = tipo === 'bulto' ? (cant * tempArt.unixbul) : cant;
+        let totalBultos = tipo === 'bulto' ? cant : (cant / tempArt.unixbul);
+        
+        // Formatear fecha para el excel (de YYYY-MM-DD a DD/MM/YYYY) o poner S/D
+        let vencFormat = venc ? venc.split('-').reverse().join('/') : "S/D";
+
+        DATA_SESION.unshift({
+            "Ubicación": ubicacionValidada,
+            "Código Art": tempArt.codigo,
+            "Descripción": tempArt.nombre,
+            "Cantidad Bultos": parseFloat(totalBultos.toFixed(2)),
+            "Cantidad Unidades": totalUnidades,
+            "Vencimiento": vencFormat,
+            "Fecha/Hora": new Date().toLocaleString()
+        });
+
+        actualizarHistorial();
+        hablar("Registrado");
+        cerrarPanelConteo();
+    }
+
+    function actualizarHistorial() {
+        document.getElementById('counter').innerText = `${DATA_SESION.length} ITEMS`;
+        const container = document.getElementById('history');
+        
+        container.innerHTML = DATA_SESION.map((d, i) => `
+            <div class="flex flex-col bg-white p-3 rounded-lg border-l-4 border-green-500 shadow-sm text-sm">
+                <div class="flex justify-between border-b pb-1 mb-1">
+                    <span class="font-bold text-gray-500 text-[10px] uppercase">📍 ${d["Ubicación"]}</span>
+                    <button onclick="anularRegistro(${i})" class="text-red-500 font-bold text-[10px] uppercase">Anular</button>
+                </div>
+                <div class="flex justify-between items-center">
+                    <div class="leading-tight">
+                        <span class="text-[10px] font-bold text-gray-400 block">${d["Código Art"]}</span>
+                        <span class="font-black text-blue-900 text-xs">${d["Descripción"]}</span>
+                    </div>
+                    <div class="text-right pl-2">
+                        <span class="block font-black text-green-600 text-lg">${d["Cantidad Unidades"]} <span class="text-[9px] text-gray-400">UN</span></span>
+                        ${d["Vencimiento"] !== "S/D" ? `<span class="text-[10px] font-bold text-orange-500 block mt-1">📅 ${d["Vencimiento"]}</span>` : ""}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function anularRegistro(index) {
+        if(confirm("¿Seguro que querés anular este registro?")) {
+            DATA_SESION.splice(index, 1);
+            actualizarHistorial();
+        }
+    }
+
+    // --- EXPORTAR A EXCEL ---
+    async function exportarExcel() {
+        if(DATA_SESION.length === 0) return alert("No hay datos para exportar.");
+        
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Conteo');
+        
+        // Se agregó la columna de Vencimiento
+        worksheet.columns = [
+            { header: 'Ubicación', key: 'Ubicación', width: 20 },
+            { header: 'Código Art', key: 'Código Art', width: 15 },
+            { header: 'Descripción', key: 'Descripción', width: 45 },
+            { header: 'Cantidad Bultos', key: 'Cantidad Bultos', width: 15 },
+            { header: 'Cantidad Unidades', key: 'Cantidad Unidades', width: 15 },
+            { header: 'Vencimiento', key: 'Vencimiento', width: 15 },
+            { header: 'Fecha/Hora', key: 'Fecha/Hora', width: 22 }
+        ];
+
+        worksheet.addRows(DATA_SESION);
+
+        worksheet.getRow(1).eachCell((cell) => {
+            cell.font = { bold: true, color: { argb: 'FF000000' } };
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFDDDDDD' } 
+            };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        });
+
+        worksheet.autoFilter = `A1:G${DATA_SESION.length + 1}`;
+        const totalRowIdx = DATA_SESION.length + 2;
+
+        worksheet.getCell(`C${totalRowIdx}`).value = "TOTALES VISIBLES:";
+        worksheet.getCell(`C${totalRowIdx}`).font = { bold: true, size: 12 };
+        worksheet.getCell(`C${totalRowIdx}`).alignment = { horizontal: 'right' };
+
+        worksheet.getCell(`D${totalRowIdx}`).value = { formula: `SUBTOTAL(109, D2:D${totalRowIdx - 1})` };
+        worksheet.getCell(`D${totalRowIdx}`).font = { bold: true, color: { argb: 'FF16A34A' } };
+        
+        worksheet.getCell(`E${totalRowIdx}`).value = { formula: `SUBTOTAL(109, E2:E${totalRowIdx - 1})` };
+        worksheet.getCell(`E${totalRowIdx}`).font = { bold: true, color: { argb: 'FF16A34A' } };
+
+        worksheet.getColumn('D').numFmt = '#,##0.00';
+        worksheet.getColumn('E').numFmt = '#,##0';
+        worksheet.getColumn('F').alignment = { horizontal: 'center' };
+
+        const fecha = new Date();
+        const d = String(fecha.getDate()).padStart(2, '0');
+        const m = String(fecha.getMonth() + 1).padStart(2, '0');
+        const y = fecha.getFullYear();
+        const strFecha = `${d}-${m}-${y}`;
+        const fileName = `Inventario_Vitalcan_${strFecha}.xlsx`;
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+
+    // --- COMANDOS DE VOZ ---
+    function alternarVoz() {
+        if(!recognition) return alert("Tu navegador no soporta reconocimiento de voz.");
+        const btn = document.getElementById('mic-btn');
+        
+        if(btn.classList.contains('listening')) {
+            recognition.stop();
+        } else {
+            btn.classList.add('listening');
+            recognition.start();
+        }
+    }
+
+    if(recognition) {
+        recognition.onresult = (e) => {
+            let t = e.results[0][0].transcript.toLowerCase();
+            if(!document.getElementById('panel-conteo').classList.contains('hidden')) {
+                let num = t.match(/\d+/); 
+                
+                if(t.includes("bulto") || t.includes("caja")) {
+                    document.getElementById('tipo-bul').checked = true;
+                    if(num) {
+                        document.getElementById('input-cantidad').value = num[0];
+                        hablar(num[0] + " bultos"); 
+                    } else {
+                        hablar("Bultos seleccionados");
+                    }
+                } 
+                else if(t.includes("unidad") || t.includes("unidades")) {
+                    document.getElementById('tipo-un').checked = true;
+                    if(num) {
+                        document.getElementById('input-cantidad').value = num[0];
+                        hablar(num[0] + " unidades"); 
+                    } else {
+                        hablar("Unidades seleccionadas");
+                    }
+                }
+                else if(num) {
+                    document.getElementById('input-cantidad').value = num[0];
+                    hablar(num[0]); 
+                }
+
+                if(t.includes("registrar") || t.includes("ok") || t.includes("confirmar") || t.includes("guardar")) {
+                    registrar();
+                }
+            }
+        };
+        recognition.onend = () => document.getElementById('mic-btn').classList.remove('listening');
+        recognition.onerror = () => document.getElementById('mic-btn').classList.remove('listening');
+    }
+
+    // --- PROTECCIÓN CONTRA CIERRE/ACTUALIZACIÓN ACCIDENTAL ---
+    // Agregamos un listener al evento beforeunload. 
+    // Solo advierte al usuario si hay datos guardados en DATA_SESION.
+    window.addEventListener('beforeunload', function (e) {
+        if (DATA_SESION.length > 0) {
+            e.preventDefault();
+            // Chrome requiere que returnValue sea seteado
+            e.returnValue = '';
+        }
+    });
+
+</script>
+</body>
+</html>
