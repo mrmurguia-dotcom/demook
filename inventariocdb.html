@@ -445,7 +445,7 @@
         const m = String(fecha.getMonth() + 1).padStart(2, '0');
         const y = fecha.getFullYear();
         const strFecha = `${d}-${m}-${y}`;
-        const fileName = `Inventario_Vitalcan_${strFecha}.xlsx`;
+        const fileName = `Inventario_DEMO_${strFecha}.xlsx`;
 
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
